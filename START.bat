@@ -18,4 +18,7 @@ timeout /t 2 /nobreak >nul
 
 REM Start backend in current window
 cd /d %~dp0backend
+echo Building backend...
+npm run build
+echo Starting backend...
 npm start

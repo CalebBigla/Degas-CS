@@ -97,6 +97,16 @@ export interface ScanResult {
   user?: User;
   message: string;
   accessGranted: boolean;
+  tableInfo?: {
+    id: string;
+    name: string;
+  };
+  schema?: Array<{
+    id: string;
+    name: string;
+    type: string;
+  }>;
+  fieldValues?: Record<string, any>;
 }
 
 export interface BulkUploadResult {
@@ -166,6 +176,7 @@ export interface VerifyQRRequest {
   qrData: string;
   scannerLocation?: string;
   scannedBy?: string;
+  selectedTableId?: string;
 }
 
 export interface BulkUploadRow {

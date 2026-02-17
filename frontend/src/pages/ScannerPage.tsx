@@ -9,12 +9,29 @@ interface ScanResult {
   success: boolean;
   user?: {
     id: string;
-    fullName: string;
-    role: string;
+    fullName?: string;
+    role?: string;
     photoUrl?: string;
-    status: string;
+    status?: string;
+    [key: string]: any;
   };
   message: string;
+  accessGranted?: boolean;
+  tableInfo?: {
+    id: string;
+    name: string;
+  };
+  schema?: Array<{
+    id: string;
+    name: string;
+    type: string;
+  }>;
+  fieldValues?: Record<string, any>;
+}
+
+interface Table {
+  id: string;
+  name: string;
 }
 
 export function ScannerPage() {
@@ -25,6 +42,9 @@ export function ScannerPage() {
   const [showResult, setShowResult] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [useSimplifiedScanner, setUseSimplifiedScanner] = useState(false);
+  const [selectedTableId, setSelectedTableId] = useState<string>('');
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
 
   const startScanner = () => {
     setCameraError(null);
@@ -90,7 +110,10 @@ export function ScannerPage() {
 
   const handleScanSuccess = async (qrData: string) => {
     try {
-      const response = await api.post('/scanner/verify', { qrData });
+      const response = await api.post('/scanner/verify', { 
+        qrData,
+        selectedTableId: selectedTableId || undefined
+      });
       const result = response.data;
       
       setScanResult(result);
@@ -127,6 +150,23 @@ export function ScannerPage() {
   };
 
   useEffect(() => {
+    // Fetch available tables for the selector
+    const fetchTables = async () => {
+      try {
+        setLoadingTables(true);
+        const response = await api.get('/scanner/tables');
+        if (response.data.success) {
+          setTables(response.data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tables:', error);
+      } finally {
+        setLoadingTables(false);
+      }
+    };
+
+    fetchTables();
+
     return () => {
       if (scannerRef.current) {
         try {
@@ -153,6 +193,43 @@ export function ScannerPage() {
         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
           {!showResult ? (
             <>
+              {/* Table Selector */}
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b-2 border-blue-300">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-semibold text-blue-900">
+                    📋 Select Table for Scanning
+                  </label>
+                  {selectedTableId && (
+                    <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+                      Filtering by table
+                    </span>
+                  )}
+                </div>
+                {loadingTables ? (
+                  <p className="text-sm text-gray-600">Loading tables...</p>
+                ) : (
+                  <div className="space-y-2">
+                    <select
+                      value={selectedTableId}
+                      onChange={(e) => setSelectedTableId(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                    >
+                      <option value="">🔍 All Tables (Search Across All)</option>
+                      {tables.map((table) => (
+                        <option key={table.id} value={table.id}>
+                          📊 {table.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTableId && tables.length > 0 && (
+                      <p className="text-xs text-blue-700 italic">
+                        Showing: {tables.find(t => t.id === selectedTableId)?.name || 'Selected table'}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Scanner Mode Toggle */}
               <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                 <span className="text-sm text-gray-600">
@@ -175,6 +252,7 @@ export function ScannerPage() {
                 /* Simplified Scanner */
                 <div className="p-6">
                   <SimplifiedQRScanner
+                    selectedTableId={selectedTableId}
                     onScanSuccess={async (decodedText) => {
                       setIsProcessing(true);
                       await handleScanSuccess(decodedText);
@@ -260,13 +338,14 @@ export function ScannerPage() {
                 </h2>
 
                 {scanResult?.user && (
-                  <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 mb-6">
+                    {/* User Photo */}
                     <div className="flex items-center justify-center mb-4">
                       {scanResult.user.photoUrl ? (
                         <img
                           src={scanResult.user.photoUrl}
-                          alt={scanResult.user.fullName}
-                          className="w-24 h-24 rounded-full object-cover border-4 border-emerald"
+                          alt={scanResult.user.fullName || 'User'}
+                          className="w-24 h-24 rounded-full object-cover border-4 border-emerald shadow-lg"
                         />
                       ) : (
                         <div className="w-24 h-24 rounded-full bg-gray-300 flex items-center justify-center border-4 border-emerald">
@@ -274,12 +353,48 @@ export function ScannerPage() {
                         </div>
                       )}
                     </div>
-                    <h3 className="text-xl font-semibold text-charcoal mb-2">
-                      {scanResult.user.fullName}
+
+                    {/* User Name */}
+                    <h3 className="text-xl font-semibold text-charcoal mb-3 text-center">
+                      {scanResult.user.fullName || scanResult.user.name || 'User'}
                     </h3>
-                    <p className="text-gray-600 capitalize">
-                      {scanResult.user.role}
-                    </p>
+
+                    {/* Table Info */}
+                    {scanResult.tableInfo && (
+                      <div className="text-center mb-4 pb-4 border-b-2 border-gray-300">
+                        <p className="text-xs text-gray-600 font-medium">From Table:</p>
+                        <p className="text-sm font-semibold text-blue-700">{scanResult.tableInfo.name}</p>
+                      </div>
+                    )}
+
+                    {/* Dynamic Fields from Schema */}
+                    {scanResult.schema && scanResult.schema.length > 0 && scanResult.fieldValues ? (
+                      <div className="space-y-2">
+                        {scanResult.schema.map((field) => {
+                          const value = scanResult.fieldValues?.[field.name];
+                          // Only show fields that have values
+                          if (value === null || value === undefined || value === '') {
+                            return null;
+                          }
+                          return (
+                            <div key={field.id} className="flex justify-between text-sm py-1">
+                              <span className="font-medium text-gray-700 capitalize">{field.name}:</span>
+                              <span className="text-gray-600">{String(value)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      // Fallback to old format for backwards compatibility
+                      <div className="space-y-2">
+                        {scanResult.user.role && (
+                          <div className="flex justify-between text-sm py-1">
+                            <span className="font-medium text-gray-700">Role:</span>
+                            <span className="text-gray-600 capitalize">{scanResult.user.role}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -302,10 +417,11 @@ export function ScannerPage() {
         <div className="mt-8 bg-gray-800 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Instructions</h3>
           <ul className="text-gray-300 space-y-2">
-            <li>• Position the QR code within the scanning frame</li>
-            <li>• Ensure good lighting for optimal scanning</li>
-            <li>• Hold steady until the code is recognized</li>
-            <li>• Results will display automatically after scanning</li>
+            <li>• <strong>Select a Table:</strong> Choose the table you want to scan from (or leave as "All Tables" to search across the database)</li>
+            <li>• <strong>Position QR Code:</strong> Position the QR code within the scanning frame</li>
+            <li>• <strong>Good Lighting:</strong> Ensure bright, even lighting for optimal scanning</li>
+            <li>• <strong>Hold Steady:</strong> Keep the code steady until recognized</li>
+            <li>• <strong>View Results:</strong> Results display automatically after scanning with fields specific to that table</li>
           </ul>
           
           <div className="mt-6 pt-6 border-t border-gray-700">

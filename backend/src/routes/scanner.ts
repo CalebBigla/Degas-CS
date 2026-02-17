@@ -4,7 +4,8 @@ import {
   verifyQR,
   verifyQRValidation,
   getUserByHash,
-  getAccessLogs
+  getAccessLogs,
+  getAllTables
 } from '../controllers/scannerController';
 
 const router = Router();
@@ -20,6 +21,9 @@ router.get('/user/:hash', getUserByHash);
 
 // Get access logs
 router.get('/logs', getAccessLogs);
+
+// Get all tables for scanner selector
+router.get('/tables', getAllTables);
 
 // Test route to get verification URL for a user
 router.get('/test-qr/:userId', async (req, res) => {

@@ -16,6 +16,11 @@ interface VerificationData {
   timestamp: string;
 }
 
+interface Table {
+  id: string;
+  name: string;
+}
+
 export function ScannerLandingPage() {
   const [isScanning, setIsScanning] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -24,6 +29,38 @@ export function ScannerLandingPage() {
   const [countdown, setCountdown] = useState(5);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualCode, setManualCode] = useState('');
+  const [selectedTableId, setSelectedTableId] = useState<string>('');
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
+
+  // Fetch available tables on mount
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        setLoadingTables(true);
+        const token = localStorage.getItem('degas_token');
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch('/api/scanner/tables', { headers });
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          setTables(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tables:', error);
+      } finally {
+        setLoadingTables(false);
+      }
+    };
+
+    fetchTables();
+  }, []);
 
   // Auto-restart scanner after 5 seconds
   useEffect(() => {
@@ -79,7 +116,8 @@ export function ScannerLandingPage() {
         headers,
         body: JSON.stringify({ 
           qrData: extractedData,
-          scannerLocation: 'Web Scanner'
+          scannerLocation: 'Web Scanner',
+          selectedTableId: selectedTableId || undefined
         }),
       });
 
@@ -167,6 +205,50 @@ export function ScannerLandingPage() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
+          {/* Table Selector - Always visible at top */}
+          <div className="mb-6 bg-gray-800 rounded-lg shadow-xl overflow-hidden border border-gray-700">
+            <div className="p-4 bg-gradient-to-r from-blue-900/50 to-blue-800/50 border-b border-blue-700">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-semibold text-blue-200">
+                  📋 Select Table for Scanning
+                </label>
+                {selectedTableId && (
+                  <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+                    Filtering by table
+                  </span>
+                )}
+              </div>
+              {loadingTables ? (
+                <p className="text-sm text-gray-400">Loading tables...</p>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    value={selectedTableId}
+                    onChange={(e) => setSelectedTableId(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white border-2 border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                  >
+                    <option value="">🔍 All Tables (Search Across All)</option>
+                    {tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        📊 {table.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTableId && tables.length > 0 && (
+                    <p className="text-xs text-blue-300 italic">
+                      Scanning only: {tables.find(t => t.id === selectedTableId)?.name || 'Selected table'}
+                    </p>
+                  )}
+                  {!selectedTableId && (
+                    <p className="text-xs text-gray-400 italic">
+                      Scanning all tables in the system
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Title Section */}
           {isScanning && !verificationResult && !showManualInput && (
             <div className="text-center mb-8 animate-fadeIn">
@@ -282,6 +364,7 @@ export function ScannerLandingPage() {
             <div className="mt-8 bg-gray-800/50 rounded-lg p-6 border border-gray-700">
               <h3 className="text-white font-semibold mb-3">Scanning Tips:</h3>
               <ul className="text-gray-300 space-y-2 text-sm">
+                <li>• <strong>Table Selection:</strong> Choose a specific table or scan all tables</li>
                 <li>• Hold your device steady and ensure good lighting</li>
                 <li>• Center the QR code within the green frame</li>
                 <li>• Keep the QR code flat and avoid glare</li>

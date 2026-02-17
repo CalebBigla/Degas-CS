@@ -67,15 +67,19 @@ git push -u origin main
    - `QR_SECRET` = (click "Generate")
    - `FRONTEND_URL` = `https://degas-cs-frontend.onrender.com` (we'll update this after frontend is deployed)
 
-5. Add Persistent Disk (for SQLite database):
-   - Click "Add Disk"
+5. Click "Create Web Service"
+
+6. Wait for initial deployment (5-10 minutes)
+
+7. **Add Persistent Disk (IMPORTANT - Do this after service is created):**
+   - Once the service is created, go to your service dashboard
+   - Scroll down to find the "Disks" section (left sidebar or in settings)
+   - Click "Add Disk" or "New Disk"
    - **Name**: `degas-data`
    - **Mount Path**: `/opt/render/project/src/backend/data`
-   - **Size**: 1 GB
-
-6. Click "Create Web Service"
-
-7. Wait for deployment (5-10 minutes)
+   - **Size**: 1 GB (free tier)
+   - Click "Save"
+   - The service will redeploy automatically
 
 8. Note your backend URL: `https://degas-cs-backend.onrender.com`
 

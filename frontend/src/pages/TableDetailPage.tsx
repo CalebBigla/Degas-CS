@@ -107,6 +107,15 @@ export function TableDetailPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      
+      // Log instructions for manual QR testing
+      console.log('📝 ID Card Generated! To test scanner manually:');
+      console.log('1. Open Scanner page and switch to "Manual Entry" mode');
+      console.log('2. Check backend logs for QR data:');
+      console.log('   Get-Content backend/logs/combined.log -Tail 20');
+      console.log('3. Look for "QR code generated and stored" message');
+      console.log('4. Or query database: SELECT qr_data FROM qr_codes WHERE user_id = ? ORDER BY created_at DESC LIMIT 1');
+      console.log('5. Paste the QR data (base64 string) in manual entry field');
     },
     {
       onSuccess: () => {

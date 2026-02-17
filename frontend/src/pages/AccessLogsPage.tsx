@@ -200,8 +200,8 @@ export function AccessLogsPage() {
                           </div>
                         )}
                         <div>
-                          <p className="font-medium text-gray-900">{log.userName}</p>
-                          <p className="text-sm text-gray-500">ID: {log.userId.substring(0, 8)}</p>
+                          <p className="font-medium text-gray-900">{log.userName || 'Unknown User'}</p>
+                          <p className="text-sm text-gray-500">ID: {log.userId?.substring(0, 8) || 'N/A'}</p>
                         </div>
                       </div>
                     </td>
@@ -222,7 +222,7 @@ export function AccessLogsPage() {
                     </td>
                     <td>
                       <code className="px-2 py-1 bg-gray-100 rounded text-xs font-mono text-gray-700">
-                        {log.qrId?.substring(0, 12) || log.id.substring(0, 12)}
+                        {log.qrId?.substring(0, 12) || (typeof log.id === 'string' ? log.id.substring(0, 12) : String(log.id).substring(0, 12))}
                       </code>
                     </td>
                   </tr>

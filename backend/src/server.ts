@@ -41,7 +41,9 @@ app.use(helmet({
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
+  'https://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://127.0.0.1:5173',
 ];
 
 // Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
@@ -55,8 +57,8 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Allow local network IPs
-    const localNetworkPattern = /^http:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}):5173$/;
+    // Allow local network IPs (both HTTP and HTTPS)
+    const localNetworkPattern = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}):5173$/;
     if (localNetworkPattern.test(origin)) {
       return callback(null, true);
     }

@@ -4,24 +4,31 @@ import { getDatabase } from '../config/database';
 import { handleValidationErrors } from '../middleware/validation';
 import { AuthRequest } from '../middleware/auth';
 import { QRService } from '../services/qrService';
+import { FieldNormalizer } from '../services/fieldNormalizer';
+import { TableSchemaRegistry } from '../services/tableSchemaRegistry';
 import { VerifyQRRequest, ScanResult, ApiResponse } from '@gatekeeper/shared';
 import logger from '../config/logger';
 
 export const verifyQRValidation = [
   body('qrData').notEmpty().withMessage('QR data is required'),
   body('scannerLocation').optional().isString().withMessage('Scanner location must be a string'),
+  body('selectedTableId').optional().isString().withMessage('Selected table ID must be a string'),
   handleValidationErrors
 ];
 
 export const verifyQR = async (req: AuthRequest, res: Response) => {
   try {
-    const { qrData, scannerLocation } = req.body as VerifyQRRequest;
+    const { qrData, scannerLocation, selectedTableId } = req.body as VerifyQRRequest & { selectedTableId?: string };
     const scannedBy = req.admin?.id;
 
-    logger.info('QR verification request received', { scannerLocation, scannedBy });
+    logger.info('QR verification request received', { 
+      scannerLocation, 
+      scannedBy,
+      selectedTableId: selectedTableId || 'all-tables'
+    });
 
-    // Use the new database verification method
-    const verification = await QRService.verifyQRFromDatabase(qrData);
+    // Use the new database verification method with optional table filter
+    const verification = await QRService.verifyQRFromDatabase(qrData, selectedTableId);
     
     if (!verification.valid) {
       // Log failed scan attempt
@@ -49,8 +56,8 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     }
 
     // QR is valid and user found
-    const { user, table, qrCode } = verification;
-    const accessGranted = true; // User exists in system
+    const { user, table, tableSchema, qrCode } = verification;
+    const accessGranted = true; // User exists in system (or in selected table)
 
     // Log successful scan
     try {
@@ -64,15 +71,16 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       logger.error('Failed to log access:', dbError);
     }
 
+    // Build result with only actual table fields - no hardcoded ones
     const result: ScanResult = {
       success: true,
       user: {
         id: user!.id,
-        employeeId: user!.stateCode,
-        fullName: user!.name,
-        email: user!.email || '',
-        role: user!.designation,
-        department: user!.department || '',
+        employeeId: '', // Will be filled from actual data if exists
+        fullName: user!.data?.fullName || user!.data?.name || 'Unknown User',
+        email: user!.data?.email,
+        role: user!.data?.role || user!.data?.designation || '',
+        department: user!.data?.department,
         photoUrl: user!.photoUrl,
         status: 'active',
         qrHash: qrCode!.id,
@@ -83,11 +91,22 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       message: 'Access granted'
     };
 
-    logger.info(`QR scan: ${user!.name} - GRANTED at ${scannerLocation}`);
+    // Attach schema and field values for frontend to display dynamically
+    const enrichedResult = {
+      ...result,
+      tableInfo: {
+        id: table!.id,
+        name: table!.name
+      },
+      schema: tableSchema?.fields || [],
+      fieldValues: user!.data || {}
+    };
+
+    logger.info(`QR scan verified - Table: ${table!.name}, User: ${user!.data?.fullName || 'Unknown'}`);
 
     res.json({
       success: true,
-      data: result
+      data: enrichedResult
     });
 
   } catch (error) {
@@ -231,6 +250,26 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch access logs'
+    });
+  }
+};
+
+export const getAllTables = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const tables = await TableSchemaRegistry.getAllTables();
+    
+    res.json({
+      success: true,
+      data: tables
+    });
+  } catch (error) {
+    logger.error('Get tables error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch tables'
     });
   }
 };

@@ -3,6 +3,7 @@ import { getDatabase } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { DashboardStats } from '@gatekeeper/shared';
 import logger from '../config/logger';
+import { DashboardService } from '../services/dashboardService';
 
 // Helper function to check mock mode
 const isMockMode = (): boolean => {
@@ -14,34 +15,18 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     if (isMockMode()) {
       logger.warn('🚨 MOCK MODE: Returning mock dashboard stats');
       
-      const mockStats: DashboardStats = {
+      const mockStats = {
         totalUsers: 15,
         activeUsers: 12,
         todayScans: 8,
         successfulScans: 7,
-        recentLogs: [
+        recentActivity: [
           {
             id: '1',
-            userId: 'user-1',
-            scannerLocation: 'Main Entrance',
-            accessGranted: true,
-            scannedBy: 'admin',
-            scanTimestamp: new Date(),
-            ipAddress: '192.168.1.100',
-            userAgent: 'Scanner/1.0',
-            user: {
-              id: 'user-1',
-              employeeId: 'EMP001',
-              fullName: 'John Doe',
-              email: 'john@company.com',
-              role: 'Engineer',
-              department: 'IT',
-              photoUrl: undefined,
-              status: 'active',
-              qrHash: 'qr-1',
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }
+            userName: 'John Doe',
+            action: 'Access Granted',
+            timestamp: new Date(),
+            status: 'granted' as const
           }
         ]
       };
@@ -52,78 +37,44 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // PRODUCTION-SAFE: Database-only analytics
-    try {
-      const db = getDatabase();
-      
-      // Get total users from dynamic_users table
-      const totalUsersResult = await db.get('SELECT COUNT(*) as count FROM dynamic_users');
-      const totalUsers = totalUsersResult?.count || 0;
+    // Get real-time metrics from dashboard service
+    const metrics = await DashboardService.getMetrics();
 
-      // Get total scans (all time)
-      const totalScannedResult = await db.get('SELECT COUNT(*) as count FROM access_logs');
-      const totalScanned = totalScannedResult?.count || 0;
+    // Map DashboardMetrics to expected DashboardStats response format
+    const dashboardStats: any = {
+      totalUsers: metrics.totalUsers,
+      activeUsers: metrics.totalUsers,
+      todayScans: metrics.totalScans,
+      successfulScans: metrics.grantedScans,
+      recentActivity: metrics.recentScans.map(scan => ({
+        id: scan.id,
+        userName: scan.userName,
+        action: scan.status === 'granted' ? 'Access Granted' : 'Access Denied',
+        timestamp: scan.timestamp,
+        status: scan.status
+      }))
+    };
 
-      // Get total access granted
-      const totalAccessGrantedResult = await db.get(`SELECT COUNT(*) as count FROM access_logs 
-                WHERE access_granted = 1`);
-      const totalAccessGranted = totalAccessGrantedResult?.count || 0;
-
-      // Get total access denied
-      const totalAccessDeniedResult = await db.get(`SELECT COUNT(*) as count FROM access_logs 
-                WHERE access_granted = 0`);
-      const totalAccessDenied = totalAccessDeniedResult?.count || 0;
-
-      // Get recent logs
-      const recentLogs = await db.all(`SELECT * FROM access_logs 
-                ORDER BY scan_timestamp DESC 
-                LIMIT 10`);
-
-      const stats: DashboardStats = {
-        totalUsers,
-        activeUsers: totalUsers, // For now, assume all users are active
-        todayScans: totalScanned, // Changed to total scanned
-        successfulScans: totalAccessGranted, // Changed to total access granted
-        recentLogs: recentLogs.map(log => ({
-          id: log.id.toString(),
-          userId: log.user_id,
-          scannerLocation: log.scanner_location,
-          accessGranted: log.access_granted === 1,
-          scannedBy: log.scanned_by,
-          scanTimestamp: new Date(log.scan_timestamp),
-          ipAddress: log.ip_address,
-          userAgent: log.user_agent
-        }))
-      };
-
-      res.json({
-        success: true,
-        data: stats
-      });
-
-    } catch (dbError) {
-      logger.error('Database error in dashboard stats:', dbError);
-      
-      // Return basic stats if database fails
-      const fallbackStats: DashboardStats = {
-        totalUsers: 0,
-        activeUsers: 0,
-        todayScans: 0,
-        successfulScans: 0,
-        recentLogs: []
-      };
-
-      res.json({
-        success: true,
-        data: fallbackStats
-      });
-    }
+    res.json({
+      success: true,
+      data: dashboardStats
+    });
 
   } catch (error) {
     logger.error('❌ Get dashboard stats error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch dashboard statistics'
+    
+    // Return fallback stats on error
+    const fallbackStats: any = {
+      totalUsers: 0,
+      activeUsers: 0,
+      todayScans: 0,
+      successfulScans: 0,
+      recentActivity: []
+    };
+
+    res.json({
+      success: true,
+      data: fallbackStats
     });
   }
 };

@@ -1368,7 +1368,7 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
     for (const user of users) {
       try {
         const userData = JSON.parse(user.data);
-        const qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+        const qrResult = await QRService.generateSecureQR(user.id, tableId);
         
         const pdfBuffer = await PDFService.generateIDCard({
           id: user.uuid,
@@ -1498,7 +1498,7 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     }
 
     const userData = JSON.parse(user.data);
-    const qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+    const qrResult = await QRService.generateSecureQR(user.id, tableId);
     
     // Build card data - handle both array-based and object-based visibleFields
     const cardData = {
@@ -1675,7 +1675,7 @@ export const generateBulkDownloadCustom = async (req: AuthRequest, res: Response
     for (const user of users) {
       try {
         const userData = JSON.parse(user.data);
-        const qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+        const qrResult = await QRService.generateSecureQR(user.id, tableId);
         
         // Generate custom card data
         const cardData = {
