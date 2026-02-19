@@ -115,8 +115,29 @@ class PostgreSQLAdapter implements DatabaseAdapter {
 
   private convertSQLiteToPostgreSQL(sql: string): string {
     let converted = sql
+      // Convert datetime functions
       .replace(/datetime\('now'\)/g, 'NOW()')
       .replace(/datetime\("now"\)/g, 'NOW()')
+      .replace(/datetime\('now',\s*'([^']+)'\)/g, (match, offset) => {
+        // Convert SQLite datetime offsets to PostgreSQL intervals
+        // Examples: '-7 days', '+1 hour', '-30 minutes'
+        return `(NOW() ${offset.includes('-') ? '-' : '+'} INTERVAL '${offset.replace(/^[+-]\s*/, '')}')`
+      })
+      .replace(/datetime\("now",\s*"([^"]+)"\)/g, (match, offset) => {
+        // Same for double quotes
+        return `(NOW() ${offset.includes('-') ? '-' : '+'} INTERVAL '${offset.replace(/^[+-]\s*/, '')}')`
+      })
+      // Convert json_extract to PostgreSQL JSON operators
+      .replace(/json_extract\((\w+\.?\w*),\s*'(\$\.[^']+)'\)/g, (match, table, path) => {
+        // Convert json_extract(table.column, '$.field') to (table.column->>'field')
+        const field = path.replace('$.', '');
+        return `(${table}->>'${field}')`
+      })
+      .replace(/json_extract\((\w+\.?\w*),\s*"(\$\.[^"]+)"\)/g, (match, table, path) => {
+        // Same for double quotes
+        const field = path.replace('$.', '');
+        return `(${table}->>'${field}')`
+      })
       .replace(/AUTOINCREMENT/g, 'SERIAL')
       .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY DEFAULT gen_random_uuid()')
       .replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY');
