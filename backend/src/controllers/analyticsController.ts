@@ -179,9 +179,11 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
 
   } catch (error) {
     logger.error('❌ Get access logs error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch access logs'
+      error: 'Failed to fetch access logs',
+      details: errorMessage
     });
   }
 };

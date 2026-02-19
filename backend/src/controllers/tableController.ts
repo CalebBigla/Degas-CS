@@ -1610,9 +1610,11 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
 
   } catch (error) {
     logger.error('Generate custom ID card error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate custom ID card'
+      error: 'Failed to generate custom ID card',
+      details: errorMessage
     });
   }
 };
