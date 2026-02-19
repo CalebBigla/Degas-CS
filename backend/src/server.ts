@@ -28,6 +28,9 @@ logger.info('✅ Environment variables validated');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Render proxy for accurate IP addresses
+app.set('trust proxy', 1);
+
 // Global state for backend readiness
 let isBackendReady = false;
 let backendError: string | null = null;
