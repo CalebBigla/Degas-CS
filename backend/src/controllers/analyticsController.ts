@@ -122,17 +122,27 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     const status = req.query.status as string || 'all';
     const offset = (page - 1) * limit;
 
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+
     // Build WHERE clause
     let whereClause = '1=1';
     const params: any[] = [];
 
     if (search) {
-      whereClause += ` AND (json_extract(du.data, '$.fullName') LIKE ? OR t.name LIKE ?)`;
+      if (dbType === 'sqlite') {
+        whereClause += ` AND (json_extract(du.data, '$.fullName') LIKE ? OR t.name LIKE ?)`;
+      } else {
+        whereClause += ` AND ((du.data->>'fullName') LIKE $${params.length + 1} OR t.name LIKE $${params.length + 2})`;
+      }
       params.push(`%${search}%`, `%${search}%`);
     }
 
     if (status !== 'all') {
-      whereClause += ` AND al.access_granted = ?`;
+      if (dbType === 'sqlite') {
+        whereClause += ` AND al.access_granted = ?`;
+      } else {
+        whereClause += ` AND al.access_granted = $${params.length + 1}`;
+      }
       params.push(status === 'granted' ? 1 : 0);
     }
 
@@ -148,26 +158,52 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     const total = countResult?.total || 0;
 
     // Get paginated logs
-    const logsQuery = `
-      SELECT 
-        al.id,
-        al.user_id as userId,
-        json_extract(du.data, '$.fullName') as userName,
-        du.photo_url as userPhoto,
-        al.table_id as tableId,
-        t.name as tableName,
-        CASE WHEN al.access_granted = 1 THEN 'granted' ELSE 'denied' END as status,
-        al.scan_timestamp as timestamp,
-        al.scanner_location as scanLocation,
-        al.qr_code_id as qrId
-      FROM access_logs al
-      LEFT JOIN dynamic_users du ON al.user_id = du.id
-      LEFT JOIN tables t ON al.table_id = t.id
-      WHERE ${whereClause}
-      ORDER BY al.scan_timestamp DESC
-      LIMIT ? OFFSET ?
-    `;
+    let logsQuery: string;
+    if (dbType === 'sqlite') {
+      logsQuery = `
+        SELECT 
+          al.id,
+          al.user_id as userId,
+          json_extract(du.data, '$.fullName') as userName,
+          du.photo_url as userPhoto,
+          al.table_id as tableId,
+          t.name as tableName,
+          CASE WHEN al.access_granted = 1 THEN 'granted' ELSE 'denied' END as status,
+          al.scan_timestamp as timestamp,
+          al.scanner_location as scanLocation,
+          al.qr_code_id as qrId
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN tables t ON al.table_id = t.id
+        WHERE ${whereClause}
+        ORDER BY al.scan_timestamp DESC
+        LIMIT ? OFFSET ?
+      `;
+    } else {
+      logsQuery = `
+        SELECT 
+          al.id,
+          al.user_id as "userId",
+          (du.data->>'fullName') as "userName",
+          du.photo_url as "userPhoto",
+          al.table_id as "tableId",
+          t.name as "tableName",
+          CASE WHEN al.access_granted = true THEN 'granted' ELSE 'denied' END as status,
+          al.scan_timestamp as timestamp,
+          al.scanner_location as "scanLocation",
+          al.qr_code_id as "qrId"
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN tables t ON du.table_id = t.id
+        WHERE ${whereClause}
+        ORDER BY al.scan_timestamp DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `;
+    }
+    
     const logs = await db.all(logsQuery, [...params, limit, offset]);
+
+    logger.info(`Access logs fetched: ${logs.length} records, total: ${total}`);
 
     res.json({
       success: true,
@@ -192,6 +228,7 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
   try {
     const db = getDatabase();
     const range = req.query.range as string || '7d';
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
     // Calculate date range
     let daysBack = 7;
@@ -199,20 +236,26 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
     else if (range === '30d') daysBack = 30;
     else if (range === '90d') daysBack = 90;
 
+    // Date filter for SQLite vs PostgreSQL
+    const dateFilter = dbType === 'sqlite' 
+      ? `scan_timestamp >= datetime('now', '-${daysBack} days')`
+      : `scan_timestamp >= (NOW() - INTERVAL '${daysBack} days')`;
+
     // Get total scans
     const totalScansResult = await db.get(`
       SELECT COUNT(*) as count 
       FROM access_logs 
-      WHERE scan_timestamp >= datetime('now', '-${daysBack} days')
+      WHERE ${dateFilter}
     `);
     const totalScans = totalScansResult?.count || 0;
 
     // Get successful scans
+    const successCondition = dbType === 'sqlite' ? 'access_granted = 1' : 'access_granted = true';
     const successfulScansResult = await db.get(`
       SELECT COUNT(*) as count 
       FROM access_logs 
-      WHERE scan_timestamp >= datetime('now', '-${daysBack} days')
-      AND access_granted = 1
+      WHERE ${dateFilter}
+      AND ${successCondition}
     `);
     const successfulScans = successfulScansResult?.count || 0;
 
@@ -223,50 +266,102 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
     const uniqueUsersResult = await db.get(`
       SELECT COUNT(DISTINCT user_id) as count 
       FROM access_logs 
-      WHERE scan_timestamp >= datetime('now', '-${daysBack} days')
+      WHERE ${dateFilter}
     `);
     const uniqueUsers = uniqueUsersResult?.count || 0;
 
     // Get daily stats
-    const dailyStats = await db.all(`
-      SELECT 
-        date(scan_timestamp) as date,
-        COUNT(*) as scans,
-        SUM(CASE WHEN access_granted = 1 THEN 1 ELSE 0 END) as success,
-        SUM(CASE WHEN access_granted = 0 THEN 1 ELSE 0 END) as failed
-      FROM access_logs
-      WHERE scan_timestamp >= datetime('now', '-${daysBack} days')
-      GROUP BY date(scan_timestamp)
-      ORDER BY date
-    `);
+    let dailyStatsQuery: string;
+    if (dbType === 'sqlite') {
+      dailyStatsQuery = `
+        SELECT 
+          date(scan_timestamp) as date,
+          COUNT(*) as scans,
+          SUM(CASE WHEN access_granted = 1 THEN 1 ELSE 0 END) as success,
+          SUM(CASE WHEN access_granted = 0 THEN 1 ELSE 0 END) as failed
+        FROM access_logs
+        WHERE ${dateFilter}
+        GROUP BY date(scan_timestamp)
+        ORDER BY date
+      `;
+    } else {
+      dailyStatsQuery = `
+        SELECT 
+          DATE(scan_timestamp) as date,
+          COUNT(*) as scans,
+          SUM(CASE WHEN access_granted = true THEN 1 ELSE 0 END) as success,
+          SUM(CASE WHEN access_granted = false THEN 1 ELSE 0 END) as failed
+        FROM access_logs
+        WHERE ${dateFilter}
+        GROUP BY DATE(scan_timestamp)
+        ORDER BY date
+      `;
+    }
+    const dailyStats = await db.all(dailyStatsQuery);
 
     // Get top users
-    const topUsers = await db.all(`
-      SELECT 
-        json_extract(du.data, '$.fullName') as name,
-        COUNT(*) as scans
-      FROM access_logs al
-      LEFT JOIN dynamic_users du ON al.user_id = du.id
-      WHERE al.scan_timestamp >= datetime('now', '-${daysBack} days')
-      GROUP BY al.user_id
-      ORDER BY scans DESC
-      LIMIT 10
-    `);
+    let topUsersQuery: string;
+    if (dbType === 'sqlite') {
+      topUsersQuery = `
+        SELECT 
+          json_extract(du.data, '$.fullName') as name,
+          COUNT(*) as scans
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        WHERE ${dateFilter}
+        GROUP BY al.user_id
+        ORDER BY scans DESC
+        LIMIT 10
+      `;
+    } else {
+      topUsersQuery = `
+        SELECT 
+          (du.data->>'fullName') as name,
+          COUNT(*) as scans
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        WHERE ${dateFilter}
+        GROUP BY al.user_id, (du.data->>'fullName')
+        ORDER BY scans DESC
+        LIMIT 10
+      `;
+    }
+    const topUsers = await db.all(topUsersQuery);
 
     // Get recent logs
-    const recentLogs = await db.all(`
-      SELECT 
-        al.id,
-        json_extract(du.data, '$.fullName') as userName,
-        al.scan_timestamp as timestamp,
-        CASE WHEN al.access_granted = 1 THEN 'granted' ELSE 'denied' END as status,
-        al.scanner_location as location
-      FROM access_logs al
-      LEFT JOIN dynamic_users du ON al.user_id = du.id
-      WHERE al.scan_timestamp >= datetime('now', '-${daysBack} days')
-      ORDER BY al.scan_timestamp DESC
-      LIMIT 20
-    `);
+    let recentLogsQuery: string;
+    if (dbType === 'sqlite') {
+      recentLogsQuery = `
+        SELECT 
+          al.id,
+          json_extract(du.data, '$.fullName') as userName,
+          al.scan_timestamp as timestamp,
+          CASE WHEN al.access_granted = 1 THEN 'granted' ELSE 'denied' END as status,
+          al.scanner_location as location
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        WHERE ${dateFilter}
+        ORDER BY al.scan_timestamp DESC
+        LIMIT 20
+      `;
+    } else {
+      recentLogsQuery = `
+        SELECT 
+          al.id,
+          (du.data->>'fullName') as "userName",
+          al.scan_timestamp as timestamp,
+          CASE WHEN al.access_granted = true THEN 'granted' ELSE 'denied' END as status,
+          al.scanner_location as location
+        FROM access_logs al
+        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        WHERE ${dateFilter}
+        ORDER BY al.scan_timestamp DESC
+        LIMIT 20
+      `;
+    }
+    const recentLogs = await db.all(recentLogsQuery);
+
+    logger.info(`Analytics logs fetched for range: ${range}`);
 
     res.json({
       totalScans,

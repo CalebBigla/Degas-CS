@@ -175,44 +175,53 @@ export class PDFService {
       // User photo embedding
       if (safeUser.photoUrl) {
         try {
-          // Load and embed actual photo
-          const photoPath = path.join(__dirname, '../../', safeUser.photoUrl);
-          const photoExists = await fs.access(photoPath).then(() => true).catch(() => false);
+          let photoBytes: Buffer;
           
-          if (photoExists) {
-            const photoBytes = await fs.readFile(photoPath);
-            let photoImage;
-            
-            // Detect image type and embed accordingly
-            const ext = path.extname(safeUser.photoUrl).toLowerCase();
-            if (ext === '.png') {
-              photoImage = await pdfDoc.embedPng(photoBytes);
-            } else if (['.jpg', '.jpeg'].includes(ext)) {
-              photoImage = await pdfDoc.embedJpg(photoBytes);
-            } else {
-              throw new Error('Unsupported image format');
-            }
-            
-            // Draw the photo
-            page.drawImage(photoImage, {
-              x: 20,
-              y: 100,
-              width: 60,
-              height: 60,
-            });
-            
-            // Add border
-            page.drawRectangle({
-              x: 20,
-              y: 100,
-              width: 60,
-              height: 60,
-              borderColor: emerald,
-              borderWidth: 2,
-            });
+          // Check if it's a Cloudinary URL or local path
+          if (safeUser.photoUrl.startsWith('http://') || safeUser.photoUrl.startsWith('https://')) {
+            // Fetch from Cloudinary
+            logger.info('Fetching photo from Cloudinary:', safeUser.photoUrl);
+            const axios = require('axios');
+            const response = await axios.get(safeUser.photoUrl, { responseType: 'arraybuffer' });
+            photoBytes = Buffer.from(response.data);
           } else {
-            throw new Error('Photo file not found');
+            // Load from local filesystem
+            const photoPath = path.join(__dirname, '../../', safeUser.photoUrl);
+            const photoExists = await fs.access(photoPath).then(() => true).catch(() => false);
+            
+            if (!photoExists) {
+              throw new Error('Photo file not found');
+            }
+            photoBytes = await fs.readFile(photoPath);
           }
+          
+          let photoImage;
+          
+          // Detect image type and embed accordingly
+          const ext = safeUser.photoUrl.toLowerCase().includes('.png') ? '.png' : '.jpg';
+          if (ext === '.png') {
+            photoImage = await pdfDoc.embedPng(photoBytes);
+          } else {
+            photoImage = await pdfDoc.embedJpg(photoBytes);
+          }
+          
+          // Draw the photo
+          page.drawImage(photoImage, {
+            x: 20,
+            y: 100,
+            width: 60,
+            height: 60,
+          });
+          
+          // Add border
+          page.drawRectangle({
+            x: 20,
+            y: 100,
+            width: 60,
+            height: 60,
+            borderColor: emerald,
+            borderWidth: 2,
+          });
         } catch (photoError) {
           logger.warn('Failed to embed photo, using placeholder:', photoError);
           // Fallback to branded placeholder
@@ -471,44 +480,53 @@ export class PDFService {
       // User photo - KEEP THE IMAGE
       if (cardData.photoUrl) {
         try {
-          // Load and embed actual photo
-          const photoPath = path.join(__dirname, '../../', cardData.photoUrl);
-          const photoExists = await fs.access(photoPath).then(() => true).catch(() => false);
+          let photoBytes: Buffer;
           
-          if (photoExists) {
-            const photoBytes = await fs.readFile(photoPath);
-            let photoImage;
-            
-            // Detect image type and embed accordingly
-            const ext = path.extname(cardData.photoUrl).toLowerCase();
-            if (ext === '.png') {
-              photoImage = await pdfDoc.embedPng(photoBytes);
-            } else if (['.jpg', '.jpeg'].includes(ext)) {
-              photoImage = await pdfDoc.embedJpg(photoBytes);
-            } else {
-              throw new Error('Unsupported image format');
-            }
-            
-            // Draw the photo
-            page.drawImage(photoImage, {
-              x: 20,
-              y: 100,
-              width: 60,
-              height: 60,
-            });
-            
-            // Add border
-            page.drawRectangle({
-              x: 20,
-              y: 100,
-              width: 60,
-              height: 60,
-              borderColor: accentColor,
-              borderWidth: 2,
-            });
+          // Check if it's a Cloudinary URL or local path
+          if (cardData.photoUrl.startsWith('http://') || cardData.photoUrl.startsWith('https://')) {
+            // Fetch from Cloudinary
+            logger.info('Fetching photo from Cloudinary for custom card:', cardData.photoUrl);
+            const axios = require('axios');
+            const response = await axios.get(cardData.photoUrl, { responseType: 'arraybuffer' });
+            photoBytes = Buffer.from(response.data);
           } else {
-            throw new Error('Photo file not found');
+            // Load from local filesystem
+            const photoPath = path.join(__dirname, '../../', cardData.photoUrl);
+            const photoExists = await fs.access(photoPath).then(() => true).catch(() => false);
+            
+            if (!photoExists) {
+              throw new Error('Photo file not found');
+            }
+            photoBytes = await fs.readFile(photoPath);
           }
+          
+          let photoImage;
+          
+          // Detect image type and embed accordingly
+          const ext = cardData.photoUrl.toLowerCase().includes('.png') ? '.png' : '.jpg';
+          if (ext === '.png') {
+            photoImage = await pdfDoc.embedPng(photoBytes);
+          } else {
+            photoImage = await pdfDoc.embedJpg(photoBytes);
+          }
+          
+          // Draw the photo
+          page.drawImage(photoImage, {
+            x: 20,
+            y: 100,
+            width: 60,
+            height: 60,
+          });
+          
+          // Add border
+          page.drawRectangle({
+            x: 20,
+            y: 100,
+            width: 60,
+            height: 60,
+            borderColor: accentColor,
+            borderWidth: 2,
+          });
         } catch (photoError) {
           logger.warn('Failed to embed photo in custom card, using placeholder:', photoError);
           // Fallback to placeholder

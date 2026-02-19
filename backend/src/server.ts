@@ -40,7 +40,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS configuration - Allow local network access
+// CORS configuration - Allow local network access and production frontend
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
@@ -49,7 +49,7 @@ const allowedOrigins = [
   'https://127.0.0.1:5173',
 ];
 
-// Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+// Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x) and Render domains
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, etc.)
@@ -66,6 +66,12 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Allow Render.com domains (production frontend)
+    if (origin.includes('.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    logger.warn(`CORS blocked origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
