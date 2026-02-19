@@ -114,11 +114,18 @@ class PostgreSQLAdapter implements DatabaseAdapter {
   }
 
   private convertSQLiteToPostgreSQL(sql: string): string {
-    return sql
+    let converted = sql
       .replace(/datetime\('now'\)/g, 'NOW()')
+      .replace(/datetime\("now"\)/g, 'NOW()')
       .replace(/AUTOINCREMENT/g, 'SERIAL')
       .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY DEFAULT gen_random_uuid()')
       .replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY');
+    
+    // Convert ? placeholders to $1, $2, $3, etc.
+    let paramIndex = 1;
+    converted = converted.replace(/\?/g, () => `$${paramIndex++}`);
+    
+    return converted;
   }
 }
 
