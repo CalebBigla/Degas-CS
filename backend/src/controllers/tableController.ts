@@ -13,6 +13,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import { PDFService } from '../services/pdfService';
 import { QRService } from '../services/qrService';
+import { ImageService } from '../services/imageService';
 
 // Define interfaces for this module
 interface Table {
@@ -555,14 +556,25 @@ export const addUserToTable = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId } = req.params;
     const { data } = req.body;
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-
+    
     logger.info('Adding user to table', {
       tableId,
       hasData: !!data,
       hasPhoto: !!req.file,
       adminId: req.admin?.id
     });
+
+    // Process image through ImageService if provided
+    let photoUrl: string | undefined = undefined;
+    if (req.file) {
+      try {
+        photoUrl = await ImageService.processAndSaveImage(req.file);
+        logger.info('Image processed for user:', { photoUrl });
+      } catch (imageError) {
+        logger.warn('Image processing failed, continuing without photo:', imageError);
+        // Continue without photo
+      }
+    }
 
     // Validate that data is provided and is valid JSON
     if (!data) {
@@ -682,8 +694,19 @@ export const updateUserInTable = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId, userId } = req.params;
     const { data } = req.body;
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
     const mockMode = process.env.DEV_MOCK === 'true';
+
+    // Process image through ImageService if provided
+    let photoUrl: string | undefined = undefined;
+    if (req.file) {
+      try {
+        photoUrl = await ImageService.processAndSaveImage(req.file);
+        logger.info('Image processed for user update:', { photoUrl });
+      } catch (imageError) {
+        logger.warn('Image processing failed, continuing without photo:', imageError);
+        // Continue without photo
+      }
+    }
 
     if (mockMode) {
       logger.warn('🚨 MOCK MODE: Mock user update');

@@ -4,6 +4,8 @@ import path from 'path';
 import { QRService } from './qrService';
 import logger from '../config/logger';
 import { getDatabase } from '../config/database';
+import axios from 'axios';
+import sharp from 'sharp';
 
 // Helper function to sanitize text for PDF generation
 function sanitizeTextForPDF(text: string | undefined | null): string {
@@ -179,10 +181,9 @@ export class PDFService {
           
           // Check if it's a Cloudinary URL or local path
           if (safeUser.photoUrl.startsWith('http://') || safeUser.photoUrl.startsWith('https://')) {
-            // Fetch from Cloudinary
-            logger.info('Fetching photo from Cloudinary:', safeUser.photoUrl);
-            const axios = require('axios');
-            const response = await axios.get(safeUser.photoUrl, { responseType: 'arraybuffer' });
+            // Fetch from Cloudinary or remote URL
+            logger.info('Fetching photo from remote URL:', safeUser.photoUrl);
+            const response = await axios.get(safeUser.photoUrl, { responseType: 'arraybuffer', timeout: 10000 });
             photoBytes = Buffer.from(response.data);
           } else {
             // Load from local filesystem
@@ -190,18 +191,33 @@ export class PDFService {
             const photoExists = await fs.access(photoPath).then(() => true).catch(() => false);
             
             if (!photoExists) {
-              throw new Error('Photo file not found');
+              throw new Error('Photo file not found at ' + photoPath);
             }
             photoBytes = await fs.readFile(photoPath);
+          }
+          
+          // Convert WebP to JPG if needed (pdf-lib doesn't support WebP)
+          const isWebP = safeUser.photoUrl.toLowerCase().includes('.webp');
+          if (isWebP) {
+            logger.info('Converting WebP to JPG for PDF embedding');
+            photoBytes = await sharp(photoBytes)
+              .jpeg({ quality: 85 })
+              .toBuffer();
           }
           
           let photoImage;
           
           // Detect image type and embed accordingly
-          const ext = safeUser.photoUrl.toLowerCase().includes('.png') ? '.png' : '.jpg';
-          if (ext === '.png') {
-            photoImage = await pdfDoc.embedPng(photoBytes);
-          } else {
+          const ext = safeUser.photoUrl.toLowerCase();
+          try {
+            if (ext.includes('.png')) {
+              photoImage = await pdfDoc.embedPng(photoBytes);
+            } else {
+              // Default to JPG (includes converted WebP)
+              photoImage = await pdfDoc.embedJpg(photoBytes);
+            }
+          } catch (embedError) {
+            logger.warn('Failed to embed image, trying JPG fallback:', embedError);
             photoImage = await pdfDoc.embedJpg(photoBytes);
           }
           

@@ -6,6 +6,7 @@ import { User, CreateUserRequest, UpdateUserRequest, PaginatedResponse, ApiRespo
 import logger from '../config/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../config/database';
+import { ImageService } from '../services/imageService';
 
 // Validation middleware - Updated to match frontend fields
 export const createUserValidation = [
@@ -90,9 +91,20 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
     const { fullName, email, employeeId, role, department, status } = req.body;
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-
+    
     logger.info('Creating user with data:', { fullName, email, employeeId, role, department, status, hasPhoto: !!req.file });
+
+    // Process image through ImageService if provided
+    let photoUrl: string | undefined = undefined;
+    if (req.file) {
+      try {
+        photoUrl = await ImageService.processAndSaveImage(req.file);
+        logger.info('Image processed and saved:', { photoUrl });
+      } catch (imageError) {
+        logger.warn('Image processing failed, continuing without photo:', imageError);
+        // Continue without photo, don't fail the entire user creation
+      }
+    }
 
     // Use database to create user
     const db = getDatabase();
