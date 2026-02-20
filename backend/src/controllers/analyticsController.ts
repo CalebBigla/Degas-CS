@@ -194,7 +194,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
           al.qr_code_id as "qrId"
         FROM access_logs al
         LEFT JOIN dynamic_users du ON al.user_id = du.id
-        LEFT JOIN tables t ON du.table_id = t.id
+        LEFT JOIN tables t ON al.table_id = t.id
         WHERE ${whereClause}
         ORDER BY al.scan_timestamp DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}

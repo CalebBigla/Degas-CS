@@ -1380,45 +1380,96 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
     const zipFileName = `${table.name}_id_cards_${Date.now()}.zip`;
     const zipPath = path.join(__dirname, '../../temp', zipFileName);
     
+    logger.info('Starting ID card generation', { tableId, userCount: users.length, zipPath });
+    
     // Ensure temp directory exists
     await fs.mkdir(path.dirname(zipPath), { recursive: true });
 
-    const output = require('fs').createWriteStream(zipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    // Wrap archive operations in a Promise
+    return new Promise((resolve, reject) => {
+      const output = require('fs').createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
 
-    archive.pipe(output);
-
-    for (const user of users) {
-      try {
-        const userData = JSON.parse(user.data);
-        const qrResult = await QRService.generateSecureQR(user.id, tableId);
-        
-        const pdfBuffer = await PDFService.generateIDCard({
-          id: user.uuid,
-          tableId: tableId,
-          name: userData.fullName || userData.name || 'Unknown User',
-          role: userData.role || 'Member',
-          department: userData.department || '',
-          photoUrl: user.photo_url,
-          qrCode: qrResult.qrData,
-          issuedDate: new Date(user.created_at)
+      // Handle archive errors
+      archive.on('error', (err: any) => {
+        logger.error('Archive error:', err);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to create zip file'
         });
+        reject(err);
+      });
 
-        const fileName = `${userData.fullName || user.uuid}_id_card.pdf`;
-        archive.append(pdfBuffer, { name: fileName });
-      } catch (cardError) {
-        logger.error(`Failed to generate ID card for user ${user.id}:`, cardError);
-      }
-    }
+      // Handle stream errors
+      output.on('error', (err: any) => {
+        logger.error('Output stream error:', err);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to write zip file'
+        });
+        reject(err);
+      });
 
-    await archive.finalize();
+      // Handle completion
+      output.on('close', () => {
+        logger.info('Zip file created successfully', { zipFileName, size: archive.pointer() });
+        res.json({
+          success: true,
+          data: {
+            downloadUrl: `/temp/${zipFileName}`,
+            count: users.length,
+            size: archive.pointer()
+          }
+        });
+        resolve(true);
+      });
 
-    res.json({
-      success: true,
-      data: {
-        downloadUrl: `/temp/${zipFileName}`,
-        count: users.length
-      }
+      archive.pipe(output);
+
+      // Generate PDF for each user
+      (async () => {
+        for (const user of users) {
+          try {
+            logger.info('Generating ID card for user', { userId: user.id, userName: user.data });
+            
+            const userData = JSON.parse(user.data);
+            
+            // Generate QR code
+            const qrResult = await QRService.generateSecureQR(user.id, tableId);
+            logger.info('QR code generated', { userId: user.id });
+            
+            // Generate PDF
+            const pdfBuffer = await PDFService.generateIDCard({
+              id: user.uuid,
+              tableId: tableId,
+              name: userData.fullName || userData.name || 'Unknown User',
+              role: userData.role || 'Member',
+              department: userData.department || '',
+              photoUrl: user.photo_url,
+              qrCode: qrResult.qrData,
+              issuedDate: new Date(user.created_at)
+            });
+
+            logger.info('PDF generated successfully', { userId: user.id, bufferSize: pdfBuffer.length });
+
+            const fileName = `${userData.fullName || user.uuid}_id_card.pdf`;
+            archive.append(pdfBuffer, { name: fileName });
+          } catch (cardError) {
+            logger.error(`Failed to generate ID card for user ${user.id}:`, cardError);
+            // Continue with next user instead of failing entire batch
+          }
+        }
+        
+        // Finalize archive after all PDFs are processed
+        await archive.finalize();
+      })().catch((err) => {
+        logger.error('ID card batch generation error:', err);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to generate ID cards'
+        });
+        reject(err);
+      });
     });
 
   } catch (error) {
