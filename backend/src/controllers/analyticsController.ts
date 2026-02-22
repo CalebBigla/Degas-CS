@@ -61,7 +61,10 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('❌ Get dashboard stats error:', error);
+    logger.error('❌ Get dashboard stats error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     
     // Return fallback stats on error
     const fallbackStats: any = {
@@ -74,7 +77,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 
     res.json({
       success: true,
-      data: fallbackStats
+      data: fallbackStats,
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -214,12 +218,17 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('❌ Get access logs error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('❌ Get access logs error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch access logs',
-      details: errorMessage
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -375,10 +384,15 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('❌ Get analytics logs error:', error);
+    logger.error('❌ Get analytics logs error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      range: req.query.range || '7d'
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch analytics logs'
+      error: 'Failed to fetch analytics logs',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 };

@@ -1358,6 +1358,7 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
     const db = getDatabase();
     
     // Get table and users
+    logger.info('🔍 Fetching table details for ID card generation', { tableId });
     const table = await db.get('SELECT * FROM tables WHERE id = ?', [tableId]);
 
     if (!table) {
@@ -1367,20 +1368,24 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    logger.info('📋 Fetching users from table', { tableId, tableName: table.name });
     const users = await db.all('SELECT * FROM dynamic_users WHERE table_id = ?', [tableId]);
 
     if (users.length === 0) {
+      logger.warn('⚠️  No users found in table', { tableId });
       return res.status(400).json({
         success: false,
         error: 'No users found in table'
       });
     }
 
+    logger.info(`✅ Found ${users.length} users for ID card generation`, { tableId });
+
     // Generate ID cards
     const zipFileName = `${table.name}_id_cards_${Date.now()}.zip`;
     const zipPath = path.join(__dirname, '../../temp', zipFileName);
     
-    logger.info('Starting ID card generation', { tableId, userCount: users.length, zipPath });
+    logger.info('📦 Starting bulk ID card generation', { tableId, userCount: users.length, zipPath });
     
     // Ensure temp directory exists
     await fs.mkdir(path.dirname(zipPath), { recursive: true });
@@ -1392,27 +1397,39 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
 
       // Handle archive errors
       archive.on('error', (err: any) => {
-        logger.error('Archive error:', err);
-        res.status(500).json({
-          success: false,
-          error: 'Failed to create zip file'
-        });
+        logger.error('❌ Archive creation error:', { error: err.message, code: err.code });
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: 'Failed to create zip file',
+            details: err instanceof Error ? err.message : String(err)
+          });
+        }
         reject(err);
       });
 
       // Handle stream errors
       output.on('error', (err: any) => {
-        logger.error('Output stream error:', err);
-        res.status(500).json({
-          success: false,
-          error: 'Failed to write zip file'
-        });
+        logger.error('❌ File stream error:', { error: err.message, code: err.code });
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: 'Failed to write zip file',
+            details: err instanceof Error ? err.message : String(err)
+          });
+        }
         reject(err);
       });
 
       // Handle completion
       output.on('close', () => {
-        logger.info('Zip file created successfully', { zipFileName, size: archive.pointer() });
+        const size = archive.pointer();
+        logger.info('✅ Zip file created successfully', { 
+          zipFileName, 
+          size,
+          userCount: users.length,
+          downloadUrl: `/temp/${zipFileName}`
+        });
         res.json({
           success: true,
           data: {
@@ -1428,17 +1445,31 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
 
       // Generate PDF for each user
       (async () => {
+        let successCount = 0;
+        let failureCount = 0;
+
         for (const user of users) {
           try {
-            logger.info('Generating ID card for user', { userId: user.id, userName: user.data });
+            logger.info('🎨 Generating ID card for user', { 
+              userId: user.id,
+              userName: user.data && (typeof user.data === 'string' ? JSON.parse(user.data).fullName : user.data.fullName)
+            });
             
-            const userData = JSON.parse(user.data);
+            // Parse user data - handle both string and object formats
+            let userData;
+            if (typeof user.data === 'string') {
+              userData = JSON.parse(user.data);
+            } else {
+              userData = user.data;
+            }
             
             // Generate QR code
+            logger.info('🔲 Generating QR code', { userId: user.id, tableId });
             const qrResult = await QRService.generateSecureQR(user.id, tableId);
-            logger.info('QR code generated', { userId: user.id });
+            logger.info('✅ QR code generated', { userId: user.id });
             
             // Generate PDF
+            logger.info('📄 Generating PDF', { userId: user.id, userName: userData.fullName });
             const pdfBuffer = await PDFService.generateIDCard({
               id: user.uuid,
               tableId: tableId,
@@ -1450,33 +1481,60 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
               issuedDate: new Date(user.created_at)
             });
 
-            logger.info('PDF generated successfully', { userId: user.id, bufferSize: pdfBuffer.length });
+            logger.info('✅ PDF generated successfully', { 
+              userId: user.id, 
+              bufferSize: pdfBuffer.length,
+              format: 'pdf'
+            });
 
-            const fileName = `${userData.fullName || user.uuid}_id_card.pdf`;
+            const fileName = `${(userData.fullName || user.uuid).replace(/[^a-zA-Z0-9]/g, '_')}_id_card.pdf`;
             archive.append(pdfBuffer, { name: fileName });
+            successCount++;
           } catch (cardError) {
-            logger.error(`Failed to generate ID card for user ${user.id}:`, cardError);
+            failureCount++;
+            logger.error(`❌ Failed to generate ID card for user ${user.id}:`, {
+              error: cardError instanceof Error ? cardError.message : String(cardError),
+              stack: cardError instanceof Error ? cardError.stack : undefined,
+              userId: user.id
+            });
             // Continue with next user instead of failing entire batch
           }
         }
         
+        logger.info(`📊 ID card generation complete`, {
+          total: users.length,
+          success: successCount,
+          failed: failureCount
+        });
+        
         // Finalize archive after all PDFs are processed
         await archive.finalize();
       })().catch((err) => {
-        logger.error('ID card batch generation error:', err);
-        res.status(500).json({
-          success: false,
-          error: 'Failed to generate ID cards'
+        logger.error('❌ ID card batch generation error:', {
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
         });
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: 'Failed to generate ID cards',
+            details: err instanceof Error ? err.message : String(err)
+          });
+        }
         reject(err);
       });
     });
 
   } catch (error) {
-    logger.error('Generate table ID cards error:', error);
+    logger.error('❌ Generate table ID cards error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      tableId: req.params.tableId
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to generate ID cards'
+      error: 'Failed to generate ID cards',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -1683,7 +1741,12 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     res.send(cardBuffer);
 
   } catch (error) {
-    logger.error('Generate custom ID card error:', error);
+    logger.error('❌ Generate custom ID card error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      tableId: req.params.tableId,
+      userId: req.params.userId
+    });
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({
       success: false,

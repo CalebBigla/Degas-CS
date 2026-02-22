@@ -13,17 +13,46 @@ import { initializeDatabase, testDatabaseConnection, verifyDatabaseSchema } from
 dotenv.config();
 
 // Validate critical environment variables
-if (!process.env.JWT_SECRET) {
-  console.error('❌ CRITICAL: JWT_SECRET environment variable is not set');
+const requiredEnv = ['JWT_SECRET', 'QR_SECRET'];
+const missingEnv = requiredEnv.filter(env => !process.env[env]);
+
+if (missingEnv.length > 0) {
+  console.error(`❌ CRITICAL: Missing environment variables: ${missingEnv.join(', ')}`);
   process.exit(1);
 }
 
-if (!process.env.QR_SECRET) {
-  console.error('❌ CRITICAL: QR_SECRET environment variable is not set');
-  process.exit(1);
+// Validate database configuration
+const dbType = process.env.DATABASE_TYPE || 'sqlite';
+if (dbType === 'postgresql') {
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ CRITICAL: DATABASE_URL is required for PostgreSQL');
+    process.exit(1);
+  }
+  logger.info('✅ PostgreSQL configured with DATABASE_URL');
+  if (!process.env.FRONTEND_URL) {
+    console.warn('⚠️  FRONTEND_URL not set - CORS may not work correctly for production');
+  }
+} else {
+  logger.info('✅ SQLite configured');
+}
+
+// Validate optional but recommended variables for production
+if (process.env.NODE_ENV === 'production') {
+  const recommendedEnv = ['FRONTEND_URL'];
+  const missingRecommended = recommendedEnv.filter(env => !process.env[env]);
+  if (missingRecommended.length > 0) {
+    logger.warn(`⚠️  Production mode: Recommended environment variables missing: ${missingRecommended.join(', ')}`);
+  }
+  
+  if (process.env.DATABASE_TYPE === 'postgresql' && !process.env.CLOUDINARY_CLOUD_NAME) {
+    logger.warn('⚠️  Cloudinary not configured - file uploads will use ephemeral storage');
+  }
 }
 
 logger.info('✅ Environment variables validated');
+logger.info(`📦 Database Type: ${dbType}`);
+logger.info(`🔐 Node Environment: ${process.env.NODE_ENV || 'development'}`);
+logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'not set'}`);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -105,11 +134,16 @@ app.get('/api/health', (req, res) => {
       message: 'Backend is starting up...',
       ready: false,
       error: backendError,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      database: {
+        type: process.env.DATABASE_TYPE || 'sqlite',
+        status: 'initializing'
+      }
     });
   }
 
   const mockMode = process.env.DEV_MOCK === 'true';
+  const dbType = process.env.DATABASE_TYPE || 'sqlite';
   
   if (mockMode) {
     return res.json({
@@ -119,10 +153,19 @@ app.get('/api/health', (req, res) => {
       timestamp: new Date().toISOString(),
       database: {
         status: 'mock-mode',
+        type: dbType,
         mode: 'development-only'
       },
       environment: process.env.NODE_ENV || 'development',
-      warning: 'MOCK MODE ENABLED - Not suitable for production'
+      warning: 'MOCK MODE ENABLED - Not suitable for production',
+      frontend: {
+        url: process.env.FRONTEND_URL || 'not configured',
+        corsEnabled: !!process.env.FRONTEND_URL
+      },
+      cloudinary: {
+        configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY),
+        provider: 'cloudinary'
+      }
     });
   }
 
@@ -133,9 +176,18 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     database: {
       status: 'connected',
+      type: dbType,
       mode: 'production-safe'
     },
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    frontend: {
+      url: process.env.FRONTEND_URL || 'not configured',
+      corsEnabled: !!process.env.FRONTEND_URL
+    },
+    cloudinary: {
+      configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY),
+      provider: 'cloudinary'
+    }
   });
 });
 
@@ -156,6 +208,7 @@ app.use('/api/*', (req, res, next) => {
 async function initializeBackend() {
   try {
     logger.info('🚀 Starting Degas CS backend initialization...');
+    logger.info(`📊 Database Configuration: ${process.env.DATABASE_TYPE || 'sqlite'}`);
     
     // STEP 0: Ensure required directories exist
     const fs = await import('fs/promises');
@@ -165,7 +218,7 @@ async function initializeBackend() {
     try {
       await fs.mkdir(uploadsDir, { recursive: true });
       await fs.mkdir(tempDir, { recursive: true });
-      logger.info('📁 Required directories created/verified');
+      logger.info('📁 Required directories created/verified', { uploadsDir, tempDir });
     } catch (dirError) {
       logger.warn('⚠️  Directory creation warning:', dirError);
     }
@@ -177,19 +230,23 @@ async function initializeBackend() {
       logger.warn('🚨 MOCK MODE ENABLED - Skipping database checks');
       logger.warn('⚠️  This should NEVER be used in production');
     } else {
-      // STEP 1: Initialize SQLite database
-      logger.info('📊 Initializing SQLite database...');
+      // STEP 1: Initialize database
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
+      logger.info(`📊 Initializing ${dbType.toUpperCase()} database...`);
       await initializeDatabase();
+      logger.info(`✅ ${dbType.toUpperCase()} database initialized`);
       
       // STEP 2: Test database connectivity
       logger.info('🔍 Testing database connectivity...');
       await testDatabaseConnection();
+      logger.info('✅ Database connectivity verified');
       
       // STEP 3: Verify database schema
-      logger.info('✅ Verifying database schema...');
+      logger.info('📋 Verifying database schema...');
       await verifyDatabaseSchema();
+      logger.info('✅ Database schema verified');
       
-      logger.info('🗄️ SQLite database ready - system is production-ready');
+      logger.info(`🗄️ ${dbType.toUpperCase()} database ready - system is production-ready`);
     }
 
     // STEP 4: Register API routes ONLY after database is ready
@@ -213,6 +270,8 @@ async function initializeBackend() {
     const settingsRoutes = (await import('./routes/settings')).default;
     app.use('/api/settings', settingsRoutes);
 
+    logger.info('✅ All API routes registered');
+
     // 404 handler for API routes
     app.use('/api/*', (req, res) => {
       res.status(404).json({
@@ -223,7 +282,12 @@ async function initializeBackend() {
 
     // Global error handler
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.error('Unhandled error:', err);
+      logger.error('Unhandled error:', {
+        message: err.message,
+        stack: err.stack,
+        path: req.path,
+        method: req.method
+      });
       
       res.status(err.status || 500).json({
         success: false,
@@ -239,17 +303,40 @@ async function initializeBackend() {
     
     logger.info('✅ Backend initialization complete - API routes registered');
     logger.info('🎯 System ready to accept requests');
+    
+    // Log configuration summary
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    const hasCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY);
+    logger.info('📋 System Configuration Summary:', {
+      database: dbType,
+      environment: process.env.NODE_ENV || 'development',
+      fileStorage: hasCloudinary ? 'Cloudinary (persistent)' : 'Local (ephemeral)',
+      corsEnabled: !!process.env.FRONTEND_URL,
+      frontendUrl: process.env.FRONTEND_URL || 'not configured'
+    });
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
+    const errorStack = error instanceof Error ? error.stack : '';
     backendError = errorMessage;
     isBackendReady = false;
     
-    logger.error('❌ Backend initialization failed:', error);
+    logger.error('❌ Backend initialization failed:', {
+      message: errorMessage,
+      stack: errorStack
+    });
     logger.error('🛑 API routes will not be available until initialization succeeds');
     
+    // Provide helpful guidance based on error type
+    if (errorMessage.includes('DATABASE_URL')) {
+      logger.error('💡 Hint: DATABASE_URL must be set for PostgreSQL connections');
+    } else if (errorMessage.includes('ECONNREFUSED')) {
+      logger.error('💡 Hint: Cannot connect to database. Verify connection string and database is running');
+    } else if (errorMessage.includes('syntax')) {
+      logger.error('💡 Hint: SQL syntax error - check that SQL queries are compatible with your database type');
+    }
+    
     if (process.env.DEV_MOCK !== 'true') {
-      logger.error('💡 Check your SQLite database configuration and file permissions');
       logger.error('💡 Or set DEV_MOCK=true for development testing');
       throw error; // Re-throw to stop server startup
     }

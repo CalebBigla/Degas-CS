@@ -67,10 +67,30 @@ class PostgreSQLAdapter implements DatabaseAdapter {
   private pool: Pool;
 
   constructor(connectionString: string) {
+    logger.info('🔐 Creating PostgreSQL pool with SSL configuration');
     this.pool = new Pool({
       connectionString,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      ssl: process.env.NODE_ENV === 'production' 
+        ? { rejectUnauthorized: false }
+        : false,
+      max: 20,  // Maximum number of clients in pool
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
     });
+    
+    // Log pool connection events
+    this.pool.on('error', (err) => {
+      logger.error('❌ PostgreSQL pool error:', {
+        message: err.message,
+        code: err.code
+      });
+    });
+    
+    this.pool.on('connect', () => {
+      logger.info('✅ PostgreSQL pool - new client connected');
+    });
+    
+    logger.info('✅ PostgreSQL pool created and configured');
   }
 
   async query(sql: string, params: any[] = []): Promise<any> {
@@ -78,8 +98,19 @@ class PostgreSQLAdapter implements DatabaseAdapter {
     try {
       // Convert SQLite syntax to PostgreSQL
       const pgSql = this.convertSQLiteToPostgreSQL(sql);
+      logger.debug('PostgreSQL query:', { 
+        sql: pgSql.substring(0, 100), 
+        paramCount: params.length 
+      });
       const result = await client.query(pgSql, params);
       return { rows: result.rows };
+    } catch (error) {
+      logger.error('❌ PostgreSQL query error:', {
+        error: error instanceof Error ? error.message : String(error),
+        sql: sql.substring(0, 100),
+        paramCount: params.length
+      });
+      throw error;
     } finally {
       client.release();
     }
