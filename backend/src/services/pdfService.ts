@@ -400,8 +400,12 @@ export class PDFService {
       return Buffer.from(pdfBytes);
 
     } catch (error) {
-      logger.error('PDF generation failed:', error);
-      throw new Error('Failed to generate ID card');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('PDF generation failed:', {
+        errorMessage,
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
+      throw new Error(`Failed to generate ID card: ${errorMessage}`);
     }
   }
 
@@ -676,9 +680,19 @@ export class PDFService {
       const pdfBytes = await pdfDoc.save();
       return Buffer.from(pdfBytes);
 
-    } catch (error) {
-      logger.error('Custom PDF generation failed:', error);
-      throw new Error('Failed to generate custom ID card');
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      logger.error('Custom PDF generation failed:', {
+        errorMessage,
+        errorStack,
+        errorType: error?.constructor?.name || typeof error,
+        cardDataId: cardData?.id,
+        cardDataName: cardData?.name
+      });
+      
+      throw new Error(`Failed to generate custom ID card: ${errorMessage}`);
     }
   }
 
