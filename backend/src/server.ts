@@ -55,7 +55,7 @@ logger.info(`🔐 Node Environment: ${process.env.NODE_ENV || 'development'}`);
 logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'not set'}`);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
 // Trust Render proxy for accurate IP addresses
 app.set('trust proxy', 1);
