@@ -502,7 +502,6 @@ export class PDFService {
           if (cardData.photoUrl.startsWith('http://') || cardData.photoUrl.startsWith('https://')) {
             // Fetch from Cloudinary
             logger.info('Fetching photo from Cloudinary for custom card:', cardData.photoUrl);
-            const axios = require('axios');
             const response = await axios.get(cardData.photoUrl, { responseType: 'arraybuffer' });
             photoBytes = Buffer.from(response.data);
           } else {
@@ -518,9 +517,19 @@ export class PDFService {
           
           let photoImage;
           
-          // Detect image type and embed accordingly
-          const ext = cardData.photoUrl.toLowerCase().includes('.png') ? '.png' : '.jpg';
-          if (ext === '.png') {
+          // Detect image type - convert webp to jpg since pdf-lib doesn't support webp
+          const isWebp = cardData.photoUrl.toLowerCase().endsWith('.webp');
+          const isPng = cardData.photoUrl.toLowerCase().endsWith('.png');
+          
+          if (isWebp) {
+            // Convert webp to buffer as jpg format for pdf-lib compatibility
+            logger.info('Converting WebP image to JPG for PDF embedding');
+            photoBytes = await sharp(photoBytes)
+              .jpeg({ quality: 85 })
+              .toBuffer();
+          }
+          
+          if (isPng) {
             photoImage = await pdfDoc.embedPng(photoBytes);
           } else {
             photoImage = await pdfDoc.embedJpg(photoBytes);
