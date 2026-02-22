@@ -1584,6 +1584,15 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     }
     logger.info(`✅ CHECKPOINT 2b: User fetched`, { userId, userUuid: user.uuid });
 
+    logger.info(`📊 User object details:`, {
+      userId,
+      userUuid: user.uuid,
+      userKeys: Object.keys(user),
+      userIdFromDb: user.id,
+      userTableId: user.table_id,
+      userDataLength: user.data?.length || 0
+    });
+
     // If no options provided, use table's ID card config
     logger.info(`📌 CHECKPOINT 3: Processing ID card options`);
     if (!options) {

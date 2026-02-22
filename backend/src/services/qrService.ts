@@ -52,6 +52,16 @@ export class QRService {
       // Use provided tableId or 'default' if not provided
       const finalTableId = tableId || 'default';
       
+      logger.info('📊 QR insertion details:', {
+        qrId,
+        userId,
+        finalTableId,
+        userIdType: typeof userId,
+        userIdLength: String(userId).length,
+        tableIdType: typeof finalTableId,
+        qrDataLength: qrData?.length
+      });
+      
       await db.run(
         `INSERT INTO qr_codes (id, user_id, table_id, qr_data, qr_payload, is_active, created_at)
          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
