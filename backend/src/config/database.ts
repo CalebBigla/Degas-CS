@@ -82,6 +82,23 @@ async function initializePostgreSQL(): Promise<void> {
       )
     `);
 
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS qr_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        table_id UUID NOT NULL,
+        qr_data TEXT UNIQUE NOT NULL,
+        qr_payload TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        expires_at TIMESTAMP,
+        last_scanned TIMESTAMP,
+        scan_count INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES dynamic_users (id) ON DELETE CASCADE,
+        FOREIGN KEY (table_id) REFERENCES tables (id) ON DELETE CASCADE
+      )
+    `);
+
     // Create default admin users if none exist
     const adminCount = await db.get("SELECT COUNT(*) as count FROM admins");
     if (adminCount.count === 0) {
@@ -142,7 +159,7 @@ export async function verifyDatabaseSchema(): Promise<void> {
     const db = getDatabase();
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
-    const requiredTables = ['admins', 'tables', 'dynamic_users', 'access_logs'];
+    const requiredTables = ['admins', 'tables', 'dynamic_users', 'access_logs', 'qr_codes'];
     
     for (const tableName of requiredTables) {
       let result;
