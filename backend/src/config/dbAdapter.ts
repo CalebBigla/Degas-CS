@@ -79,10 +79,10 @@ class PostgreSQLAdapter implements DatabaseAdapter {
     });
     
     // Log pool connection events
-    this.pool.on('error', (err) => {
+    this.pool.on('error', (err: any) => {
       logger.error('❌ PostgreSQL pool error:', {
-        message: err.message,
-        code: err.code
+        message: err?.message || String(err),
+        code: err?.code
       });
     });
     
