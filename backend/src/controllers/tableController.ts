@@ -1666,13 +1666,14 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     logger.info(`📌 CHECKPOINT 5: Generating QR code`);
     let qrResult;
     try {
-      qrResult = await QRService.generateSecureQR(user.id, tableId);
-      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0 });
+      // Use user.uuid (the actual user identifier) not user.id (internal database ID)
+      qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0, userUuid: user.uuid });
     } catch (qrError: any) {
       logger.error(`❌ CHECKPOINT 5a FAILED: QR code generation error`, {
         error: qrError instanceof Error ? qrError.message : String(qrError),
         stack: qrError instanceof Error ? qrError.stack : undefined,
-        userId: user.id,
+        userUuid: user.uuid,
         tableId
       });
       throw new Error(`QR code generation failed: ${qrError?.message || String(qrError)}`);
