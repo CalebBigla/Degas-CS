@@ -1642,12 +1642,32 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     logger.info(`✅ CHECKPOINT 3c: Options processed`, { layout: options.layout, theme: options.theme });
 
     logger.info(`📌 CHECKPOINT 4: Parsing user data`);
-    const userData = JSON.parse(user.data);
-    logger.info(`✅ CHECKPOINT 4a: User data parsed`, { dataKeys: Object.keys(userData) });
+    let userData;
+    try {
+      userData = JSON.parse(user.data);
+      logger.info(`✅ CHECKPOINT 4a: User data parsed`, { dataKeys: Object.keys(userData) });
+    } catch (parseError: any) {
+      logger.error(`❌ CHECKPOINT 4a FAILED: Cannot parse user data`, {
+        error: parseError?.message,
+        userDataRaw: user.data?.substring(0, 100)
+      });
+      throw new Error(`Failed to parse user data: ${parseError?.message}`);
+    }
 
     logger.info(`📌 CHECKPOINT 5: Generating QR code`);
-    const qrResult = await QRService.generateSecureQR(user.id, tableId);
-    logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0 });
+    let qrResult;
+    try {
+      qrResult = await QRService.generateSecureQR(user.id, tableId);
+      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0 });
+    } catch (qrError: any) {
+      logger.error(`❌ CHECKPOINT 5a FAILED: QR code generation error`, {
+        error: qrError instanceof Error ? qrError.message : String(qrError),
+        stack: qrError instanceof Error ? qrError.stack : undefined,
+        userId: user.id,
+        tableId
+      });
+      throw new Error(`QR code generation failed: ${qrError?.message || String(qrError)}`);
+    }
     
     // Build card data - handle both array-based and object-based visibleFields
     logger.info(`📌 CHECKPOINT 6: Building card data object`);
@@ -1771,18 +1791,24 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     res.send(cardBuffer);
     logger.info(`✅ CHECKPOINT 8a: Response sent successfully`);
 
-  } catch (error) {
-    logger.error('❌ Generate custom ID card error:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      tableId: req.params.tableId,
-      userId: req.params.userId
-    });
+  } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    logger.error('❌ Generate custom ID card error:', {
+      errorType: error?.constructor?.name || typeof error,
+      errorMessage,
+      errorStack,
+      tableId: req.params.tableId,
+      userId: req.params.userId,
+      fullError: String(error)
+    });
+    
     res.status(500).json({
       success: false,
       error: 'Failed to generate custom ID card',
-      details: errorMessage
+      details: errorMessage,
+      errorType: error?.constructor?.name || 'Unknown'
     });
   }
 };
