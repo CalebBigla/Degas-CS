@@ -191,6 +191,71 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Diagnostic endpoint - for debugging database issues
+app.get('/api/diagnostic', async (req, res) => {
+  try {
+    const { getDatabase } = await import('./config/database');
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
+    // Check table existence and data
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      database: {
+        type: dbType,
+        ready: isBackendReady
+      },
+      tables: {}
+    };
+    
+    const requiredTables = ['admins', 'tables', 'dynamic_users', 'access_logs'];
+    
+    for (const tableName of requiredTables) {
+      try {
+        let countResult;
+        if (dbType === 'sqlite') {
+          countResult = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+        } else {
+          countResult = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+        }
+        
+        diagnostics.tables[tableName] = {
+          exists: true,
+          rowCount: countResult?.count || 0
+        };
+      } catch (error: any) {
+        diagnostics.tables[tableName] = {
+          exists: false,
+          error: error?.message || String(error)
+        };
+      }
+    }
+    
+    // Test a specific query that's failing
+    try {
+      const testTableId = '602a884d-bf6f-4f2b-9346-7412d383f229';
+      const testTable = await db.get('SELECT * FROM tables WHERE id = ?', [testTableId]);
+      diagnostics.testQuery = {
+        tableId: testTableId,
+        found: !!testTable,
+        tableColumns: testTable ? Object.keys(testTable) : []
+      };
+    } catch (error: any) {
+      diagnostics.testQuery = {
+        error: error?.message || String(error)
+      };
+    }
+    
+    res.json(diagnostics);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || String(error),
+      stack: error?.stack
+    });
+  }
+});
+
 // Middleware to check backend readiness for all other API routes
 app.use('/api/*', (req, res, next) => {
   if (!isBackendReady) {

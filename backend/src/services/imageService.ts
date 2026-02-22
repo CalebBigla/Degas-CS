@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../config/logger';
+// @ts-ignore: cloudinary types not available
 import { v2 as cloudinary } from 'cloudinary';
 
 // Configure Cloudinary
@@ -52,7 +53,7 @@ export class ImageService {
               format: 'webp',
               resource_type: 'image'
             },
-            (error, result) => {
+            (error: any, result: any) => {
               if (error) {
                 logger.error('Cloudinary upload failed:', error);
                 reject(new Error('Failed to upload image to cloud storage'));
