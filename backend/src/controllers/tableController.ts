@@ -1546,6 +1546,8 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     let { format = 'pdf', options } = req.body;
     const mockMode = process.env.DEV_MOCK === 'true';
 
+    logger.info(`📌 CHECKPOINT 0: Starting custom ID card generation`, { tableId, userId, format });
+
     if (mockMode) {
       logger.warn('🚨 MOCK MODE: Mock custom ID card generation');
       return res.json({
@@ -1560,30 +1562,38 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     const db = getDatabase();
     
     // Get table and user
+    logger.info(`📌 CHECKPOINT 1: Fetching table from database`);
     const table = await db.get('SELECT * FROM tables WHERE id = ?', [tableId]);
     if (!table) {
+      logger.error(`❌ CHECKPOINT 1a: Table not found`, { tableId });
       return res.status(404).json({
         success: false,
         error: 'Table not found'
       });
     }
+    logger.info(`✅ CHECKPOINT 1b: Table fetched`, { tableId, tableName: table.name });
 
+    logger.info(`📌 CHECKPOINT 2: Fetching user from database`);
     const user = await db.get('SELECT * FROM dynamic_users WHERE id = ? AND table_id = ?', [userId, tableId]);
     if (!user) {
+      logger.error(`❌ CHECKPOINT 2a: User not found`, { userId, tableId });
       return res.status(404).json({
         success: false,
         error: 'User not found'
       });
     }
+    logger.info(`✅ CHECKPOINT 2b: User fetched`, { userId, userUuid: user.uuid });
 
     // If no options provided, use table's ID card config
+    logger.info(`📌 CHECKPOINT 3: Processing ID card options`);
     if (!options) {
       let idCardConfig;
       if (table.id_card_config) {
         try {
           idCardConfig = JSON.parse(table.id_card_config);
+          logger.info(`✅ CHECKPOINT 3a: Parsed id_card_config from table`);
         } catch (error) {
-          logger.warn(`Failed to parse id_card_config for table ${tableId}`);
+          logger.warn(`⚠️ CHECKPOINT 3a: Failed to parse id_card_config for table ${tableId}`, error);
         }
       }
 
@@ -1595,6 +1605,7 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
           layout: idCardConfig.layout || 'standard',
           theme: idCardConfig.theme || 'light'
         };
+        logger.info(`✅ CHECKPOINT 3b: Using table configuration`);
       } else {
         // Default: show all fields
         options = {
@@ -1628,11 +1639,18 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
       if (!options.layout) options.layout = 'standard';
       if (!options.theme) options.theme = 'light';
     }
+    logger.info(`✅ CHECKPOINT 3c: Options processed`, { layout: options.layout, theme: options.theme });
 
+    logger.info(`📌 CHECKPOINT 4: Parsing user data`);
     const userData = JSON.parse(user.data);
+    logger.info(`✅ CHECKPOINT 4a: User data parsed`, { dataKeys: Object.keys(userData) });
+
+    logger.info(`📌 CHECKPOINT 5: Generating QR code`);
     const qrResult = await QRService.generateSecureQR(user.id, tableId);
+    logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0 });
     
     // Build card data - handle both array-based and object-based visibleFields
+    logger.info(`📌 CHECKPOINT 6: Building card data object`);
     const cardData = {
       id: user.uuid,
       tableId: tableId,
@@ -1648,6 +1666,7 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
       layout: options.layout || 'standard',
       theme: options.theme || 'light'
     };
+    logger.info(`✅ CHECKPOINT 6a: Card data object created`);
 
     logger.info(`🎨 Generating ID card for user ${user.uuid}`, {
       tableId,
@@ -1726,19 +1745,31 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
       customFields: cardData.customFields
     });
 
+    logger.info(`📌 CHECKPOINT 7: Generating PDF from card data`);
     let cardBuffer;
-    if (format === 'pdf') {
-      cardBuffer = await PDFService.generateCustomIDCard(cardData);
-    } else {
-      // For JPEG format, we'll use the PDF service and convert
-      cardBuffer = await PDFService.generateCustomIDCard(cardData);
+    try {
+      if (format === 'pdf') {
+        cardBuffer = await PDFService.generateCustomIDCard(cardData);
+      } else {
+        // For JPEG format, we'll use the PDF service and convert
+        cardBuffer = await PDFService.generateCustomIDCard(cardData);
+      }
+      logger.info(`✅ CHECKPOINT 7a: PDF generated successfully`, { bufferSize: cardBuffer?.length || 0 });
+    } catch (pdfError: any) {
+      logger.error(`❌ CHECKPOINT 7a: PDF generation failed`, {
+        error: pdfError instanceof Error ? pdfError.message : String(pdfError),
+        stack: pdfError instanceof Error ? pdfError.stack : undefined
+      });
+      throw pdfError;
     }
 
+    logger.info(`📌 CHECKPOINT 8: Sending response with PDF buffer`);
     const fileName = `${cardData.name.replace(/[^a-zA-Z0-9]/g, '_')}_id_card.${format}`;
     
     res.setHeader('Content-Type', format === 'pdf' ? 'application/pdf' : 'image/jpeg');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.send(cardBuffer);
+    logger.info(`✅ CHECKPOINT 8a: Response sent successfully`);
 
   } catch (error) {
     logger.error('❌ Generate custom ID card error:', {
