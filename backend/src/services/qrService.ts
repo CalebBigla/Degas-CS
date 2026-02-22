@@ -54,8 +54,8 @@ export class QRService {
       
       await db.run(
         `INSERT INTO qr_codes (id, user_id, table_id, qr_data, qr_payload, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, 1, datetime('now'))`,
-        [qrId, userId, finalTableId, qrData, data]
+         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [qrId, userId, finalTableId, qrData, data, true]
       );
 
       logger.info('QR code generated and stored', { qrId, userId, tableId: finalTableId });
