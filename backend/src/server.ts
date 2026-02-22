@@ -346,8 +346,8 @@ async function initializeBackend() {
 // Start server
 async function startServer() {
   try {
-    // Start HTTP server first
-    const server = app.listen(PORT, () => {
+    // Start HTTP server first - bind to 0.0.0.0 for Render
+    const server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(`🌐 Degas CS server listening on port ${PORT}`);
       logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
       logger.info('⏳ Initializing backend services...');
