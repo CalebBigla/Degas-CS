@@ -21,14 +21,21 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     const { qrData, scannerLocation, selectedTableId } = req.body as VerifyQRRequest & { selectedTableId?: string };
     const scannedBy = req.admin?.id;
 
-    logger.info('QR verification request received', { 
+    logger.info('📍 CHECKPOINT: QR verification request received', { 
       scannerLocation, 
       scannedBy,
-      selectedTableId: selectedTableId || 'all-tables'
+      selectedTableId: selectedTableId || 'all-tables',
+      qrDataLength: qrData?.length || 0
     });
 
     // Use the new database verification method with optional table filter
+    logger.info('📍 CHECKPOINT: Calling QRService.verifyQRFromDatabase');
     const verification = await QRService.verifyQRFromDatabase(qrData, selectedTableId);
+    
+    logger.info('📍 CHECKPOINT: Verification result', {
+      valid: verification.valid,
+      error: verification.error
+    });
     
     if (!verification.valid) {
       // Log failed scan attempt
@@ -49,7 +56,8 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
         message: verification.error || 'Invalid QR code'
       };
 
-      return res.json({
+      logger.info('📍 CHECKPOINT: Sending invalid verification response');
+      return res.status(401).json({
         success: true,
         data: result
       });
@@ -58,6 +66,11 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     // QR is valid and user found
     const { user, table, tableSchema, qrCode } = verification;
     const accessGranted = true; // User exists in system (or in selected table)
+
+    logger.info('📍 CHECKPOINT: QR valid, user found', {
+      userId: user?.id,
+      tableName: table?.name
+    });
 
     // Log successful scan
     try {
@@ -102,18 +115,28 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       fieldValues: user!.data || {}
     };
 
-    logger.info(`QR scan verified - Table: ${table!.name}, User: ${user!.data?.fullName || 'Unknown'}`);
+    logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${user!.data?.fullName || 'Unknown'}`);
+    logger.info('📍 CHECKPOINT: Sending successful verification response');
 
-    res.json({
+    return res.status(200).json({
       success: true,
       data: enrichedResult
     });
 
-  } catch (error) {
-    logger.error('QR verification failed:', error);
-    res.status(500).json({
+  } catch (error: any) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    logger.error('❌ QR verification failed:', {
+      errorMessage,
+      errorStack,
+      errorType: error?.constructor?.name || typeof error
+    });
+
+    return res.status(500).json({
       success: false,
-      error: 'Verification failed'
+      error: 'Verification failed',
+      details: errorMessage
     });
   }
 };

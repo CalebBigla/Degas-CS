@@ -345,20 +345,31 @@ async function initializeBackend() {
       });
     });
 
-    // Global error handler
+    // Global error handler - catch unhandled errors
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.error('Unhandled error:', {
-        message: err.message,
-        stack: err.stack,
+      const errorMessage = err?.message || String(err) || 'Unknown error';
+      const errorStack = err?.stack || undefined;
+      
+      logger.error('🚨 Unhandled error:', {
+        message: errorMessage,
+        stack: errorStack,
         path: req.path,
-        method: req.method
+        method: req.method,
+        errorType: err?.constructor?.name || typeof err
       });
       
-      res.status(err.status || 500).json({
+      // Ensure we ALWAYS send JSON
+      if (res.headersSent) {
+        logger.warn('⚠️ Headers already sent, cannot send error response');
+        return;
+      }
+      
+      return res.status(err.status || 500).json({
         success: false,
         error: process.env.NODE_ENV === 'production' 
           ? 'Internal server error' 
-          : err.message
+          : errorMessage,
+        details: process.env.NODE_ENV === 'production' ? undefined : errorStack
       });
     });
 
