@@ -133,12 +133,12 @@ export class TableSchemaRegistry {
     try {
       logger.info('Searching for user across tables', { userId });
       
-      // Search for user across all tables - search by UUID since QR codes store the UUID as userId
+      // Search for user across all tables - search by ID (primary key) since QR codes store the user's ID as userId
       const result = await db.get(
         `SELECT du.*, t.id as table_id, t.name as table_name
          FROM dynamic_users du
          JOIN tables t ON du.table_id = t.id
-         WHERE du.uuid = ?`,
+         WHERE du.id = ?`,
         [userId]
       );
 
