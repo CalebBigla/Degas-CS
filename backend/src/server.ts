@@ -256,6 +256,113 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// DEBUG: Public endpoints (no auth required) - must be before readiness check
+app.get('/api/scanner/debug/qr-codes', async (req, res) => {
+  try {
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    const allQRs = await db.all(`
+      SELECT id, user_id, table_id, qr_data, is_active, created_at, scan_count
+      FROM qr_codes
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    const testCodes = allQRs.slice(0, 3).map(qr => ({
+      id: qr.id,
+      userId: qr.user_id,
+      tableId: qr.table_id,
+      isActive: qr.is_active,
+      createdAt: qr.created_at,
+      qrData: qr.qr_data  
+    }));
+    const activeQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 1 : 'true'}`);
+    res.json({
+      success: true,
+      data: {
+        totalQRCodes: allQRs.length,
+        activeCount: activeQRs?.count || 0,
+        testCodes: testCodes
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Debug check failed',
+      details: error?.message || String(error)
+    });
+  }
+});
+
+app.post('/api/scanner/debug/verify-qr', async (req, res) => {
+  try {
+    const { qrData } = req.body;
+    if (!qrData) {
+      return res.status(400).json({
+        success: false,
+        error: 'qrData required in body'
+      });
+    }
+    const { QRService } = await import('./services/qrService');
+    const { TableSchemaRegistry } = await import('./services/tableSchemaRegistry');
+    const signatureResult = QRService.verifyQR(qrData);
+    if (!signatureResult.valid) {
+      return res.status(400).json({
+        success: false,
+        step: 'SIGNATURE_VERIFICATION',
+        error: signatureResult.error
+      });
+    }
+    const userId = signatureResult.payload?.userId;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        step: 'PAYLOAD_EXTRACTION',
+        error: 'No userId in payload'
+      });
+    }
+    const userResult = await TableSchemaRegistry.findUserAcrossTables(userId);
+    if (!userResult) {
+      return res.status(400).json({
+        success: false,
+        step: 'USER_LOOKUP',
+        userId,
+        error: 'User not found in any table'
+      });
+    }
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    const isActiveCondition = dbType === 'sqlite' ? 'is_active = 1' : 'is_active = true';
+    const qrRecord = await db.get(`
+      SELECT id, is_active, scan_count, created_at
+      FROM qr_codes
+      WHERE user_id = ? AND ${isActiveCondition}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [userId]);
+    if (!qrRecord) {
+      return res.status(400).json({
+        success: false,
+        step: 'QR_RECORD_LOOKUP',
+        userId,
+        error: 'No active QR code found for user'
+      });
+    }
+    res.json({
+      success: true,
+      verification: 'PASSED',
+      data: {
+        user: { id: userResult.user.id, name: userResult.user.data?.fullName },
+        qrRecord: { id: qrRecord.id, scanCount: qrRecord.scan_count }
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || String(error)
+    });
+  }
+});
+
 // Middleware to check backend readiness for all other API routes
 app.use('/api/*', (req, res, next) => {
   if (!isBackendReady) {
