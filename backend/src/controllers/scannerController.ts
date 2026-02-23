@@ -21,23 +21,32 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     const { qrData, scannerLocation, selectedTableId } = req.body as VerifyQRRequest & { selectedTableId?: string };
     const scannedBy = req.admin?.id;
 
-    logger.info('📍 CHECKPOINT: QR verification request received', { 
+    logger.info('🎯 ========== QR VERIFICATION START ==========');
+    logger.info('📍 Request details', { 
       scannerLocation, 
       scannedBy,
       selectedTableId: selectedTableId || 'all-tables',
-      qrDataLength: qrData?.length || 0
+      qrDataLength: qrData?.length || 0,
+      qrDataPreview: qrData?.substring(0, 100) || 'NO DATA'
     });
 
     // Use the new database verification method with optional table filter
-    logger.info('📍 CHECKPOINT: Calling QRService.verifyQRFromDatabase');
+    logger.info('📍 Calling QRService.verifyQRFromDatabase...');
     const verification = await QRService.verifyQRFromDatabase(qrData, selectedTableId);
     
-    logger.info('📍 CHECKPOINT: Verification result', {
+    logger.info('📍 Verification complete', {
       valid: verification.valid,
-      error: verification.error
+      hasUser: !!verification.user,
+      hasTable: !!verification.table,
+      error: verification.error || 'none'
     });
     
     if (!verification.valid) {
+      logger.warn('❌ VERIFICATION FAILED', { 
+        reason: verification.error,
+        qrDataPreview: qrData?.substring(0, 50)
+      });
+
       // Log failed scan attempt
       try {
         const db = getDatabase();
@@ -56,7 +65,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
         message: verification.error || 'Invalid QR code'
       };
 
-      logger.info('📍 CHECKPOINT: Sending invalid verification response');
+      logger.info('📍 Sending 401 response with error');
       return res.status(401).json({
         success: true,
         data: result
@@ -67,9 +76,12 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     const { user, table, tableSchema, qrCode } = verification;
     const accessGranted = true; // User exists in system (or in selected table)
 
-    logger.info('📍 CHECKPOINT: QR valid, user found', {
+    logger.info('✅ VERIFICATION SUCCESS', {
       userId: user?.id,
-      tableName: table?.name
+      userUuid: user?.uuid,
+      tableName: table?.name,
+      tableId: table?.id,
+      qrCodeId: qrCode?.id
     });
 
     // Log successful scan
