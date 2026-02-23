@@ -131,59 +131,99 @@ export class QRService {
     error?: string;
   }> {
     try {
+      logger.info('🔍 verifyQRFromDatabase START', { qrDataLength: qrData?.length, filterTableId });
+
       // First verify the QR signature
+      logger.info('📌 Step 1: Verifying QR signature');
       const verification = this.verifyQR(qrData);
+      logger.info('✅ Step 1 complete:', { valid: verification.valid });
+
       if (!verification.valid) {
+        logger.warn('❌ QR signature invalid:', { error: verification.error });
         return { valid: false, error: verification.error };
       }
 
       const userId = verification.payload?.userId;
       if (!userId) {
-        logger.warn('No userId in QR payload');
+        logger.warn('❌ No userId in QR payload');
         return { valid: false, error: 'Invalid QR code format' };
       }
 
-      logger.info('QR signature verified, searching for user', { userId, filterTableId });
-
-      // Find user - optionally filtered by table
-      const userResult = filterTableId 
-        ? await TableSchemaRegistry.findUserInTable(userId, filterTableId)
-        : await TableSchemaRegistry.findUserAcrossTables(userId);
+      logger.info('📌 Step 2: Searching for user', { userId, filterTableId });
+      let userResult;
+      try {
+        // Find user - optionally filtered by table
+        userResult = filterTableId 
+          ? await TableSchemaRegistry.findUserInTable(userId, filterTableId)
+          : await TableSchemaRegistry.findUserAcrossTables(userId);
+        logger.info('✅ Step 2 complete, userResult:', { found: !!userResult });
+      } catch (userSearchError: any) {
+        logger.error('❌ Step 2 FAILED - User search error:', {
+          error: userSearchError?.message || String(userSearchError),
+          stack: userSearchError?.stack
+        });
+        return { valid: false, error: 'Failed to search for user: ' + (userSearchError?.message || 'Unknown error') };
+      }
       
       if (!userResult) {
         const errorMsg = filterTableId 
           ? `User not found in selected table`
           : 'User not found in any table';
-        logger.warn(errorMsg, { userId, filterTableId });
+        logger.warn('❌ ' + errorMsg, { userId, filterTableId });
         return { valid: false, error: 'QR code not found in system' };
       }
 
       const { user, tableId, tableName, schema } = userResult;
+      logger.info('📌 Step 3: Getting database connection');
       const db = getDatabase();
+      logger.info('✅ Step 3 complete, got DB connection');
 
       // Verify QR code exists and is active
-      const qrRecord = await db.get(
-        `SELECT id, scan_count, created_at FROM qr_codes 
-         WHERE user_id = ? AND is_active = 1
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [userId]
-      );
+      logger.info('📌 Step 4: Checking QR record');
+      let qrRecord;
+      try {
+        qrRecord = await db.get(
+          `SELECT id, scan_count, created_at FROM qr_codes 
+           WHERE user_id = ? AND is_active = 1
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [userId]
+        );
+        logger.info('✅ Step 4 complete:', { qrFound: !!qrRecord });
+      } catch (qrCheckError: any) {
+        logger.error('❌ Step 4 FAILED - QR check error:', {
+          error: qrCheckError?.message || String(qrCheckError),
+          stack: qrCheckError?.stack,
+          userId
+        });
+        return { valid: false, error: 'Failed to check QR: ' + (qrCheckError?.message || 'Unknown error') };
+      }
 
       if (!qrRecord) {
-        logger.warn('No active QR codes found for user', { userId, tableId });
+        logger.warn('❌ No active QR codes found for user', { userId, tableId });
         return { valid: false, error: 'QR code not found in system' };
       }
 
       // Update scan count and last scanned time
-      await db.run(
-        `UPDATE qr_codes 
-         SET scan_count = scan_count + 1, last_scanned = datetime('now')
-         WHERE id = ?`,
-        [qrRecord.id]
-      );
+      logger.info('📌 Step 5: Updating scan count');
+      try {
+        await db.run(
+          `UPDATE qr_codes 
+           SET scan_count = scan_count + 1, last_scanned = datetime('now')
+           WHERE id = ?`,
+          [qrRecord.id]
+        );
+        logger.info('✅ Step 5 complete');
+      } catch (updateError: any) {
+        logger.error('❌ Step 5 FAILED - Update error:', {
+          error: updateError?.message || String(updateError),
+          stack: updateError?.stack
+        });
+        // Don't return error, just log it - scanning should still work
+      }
 
       // Build dynamic field values from actual user data and schema
+      logger.info('📌 Step 6: Building field values');
       const fieldValues: Record<string, any> = {};
       if (schema && schema.fields && user.data) {
         schema.fields.forEach((field: any) => {
@@ -192,8 +232,9 @@ export class QRService {
       } else if (user.data) {
         Object.assign(fieldValues, user.data);
       }
+      logger.info('✅ Step 6 complete');
 
-      logger.info('QR verification successful', {
+      logger.info('✅ QR verification successful', {
         userId,
         tableId,
         tableName
@@ -218,9 +259,20 @@ export class QRService {
           lastScanned: new Date()
         }
       };
-    } catch (error) {
-      logger.error('Database QR verification failed:', error);
-      return { valid: false, error: 'Verification failed' };
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      logger.error('❌ verifyQRFromDatabase EXCEPTION:', {
+        errorMessage,
+        errorStack,
+        errorType: error?.constructor?.name || typeof error
+      });
+
+      return {
+        valid: false,
+        error: `Verification error: ${errorMessage}`
+      };
     }
   }
 
