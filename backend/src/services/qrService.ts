@@ -237,10 +237,12 @@ export class QRService {
             createdAt: q.created_at
           }))
         });
-
+        const dbType = process.env.DATABASE_TYPE || 'sqlite';
+        const isActiveCondition = dbType === 'sqlite' ? 'is_active = 1' : 'is_active = true';
+        
         qrRecord = await db.get(
           `SELECT id, scan_count, created_at FROM qr_codes 
-           WHERE user_id = ? AND is_active = 1
+           WHERE user_id = ? AND ${isActiveCondition}
            ORDER BY created_at DESC
            LIMIT 1`,
           [userId]
@@ -255,7 +257,12 @@ export class QRService {
         } else {
           logger.warn('📍 Step 4 ⚠️ - No active QR record found', {
             userId,
-            activeQRCount: allQRsForUser.filter(q => q.is_active === 1).length,
+            dbType,
+            isActiveCondition,
+            activeQRCount: allQRsForUser.filter(q => {
+              if (dbType === 'sqlite') return q.is_active === 1;
+              return q.is_active === true || q.is_active === 'true' || ((q as any).is_active === 1);
+            }).length,
             totalQRCount: allQRsForUser.length
           });
         }
