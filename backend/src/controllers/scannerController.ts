@@ -322,9 +322,9 @@ export const debugQRCodes = async (req: Request, res: Response) => {
     
     logger.info('📊 [DEBUG QR] Checking QR codes in database...');
     
-    // Get all QR codes
+    // Get all QR codes with qr_data
     const allQRs = await db.all(`
-      SELECT id, user_id, table_id, is_active, created_at, scan_count
+      SELECT id, user_id, table_id, qr_data, is_active, created_at, scan_count
       FROM qr_codes
       ORDER BY created_at DESC
       LIMIT 20
@@ -338,7 +338,9 @@ export const debugQRCodes = async (req: Request, res: Response) => {
         tableId: qr.table_id,
         isActive: qr.is_active,
         createdAt: qr.created_at,
-        scanCount: qr.scan_count
+        scanCount: qr.scan_count,
+        qrDataExists: !!qr.qr_data,
+        qrDataLength: qr.qr_data ? String(qr.qr_data).length : 0
       }))
     });
 
@@ -346,14 +348,25 @@ export const debugQRCodes = async (req: Request, res: Response) => {
     const activeQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 1 : 'true'}`);
     const inactiveQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 0 : 'false'}`);
     
+    // Return first 3 complete codes with qr_data for testing
+    const testCodes = allQRs.slice(0, 3).map(qr => ({
+      id: qr.id,
+      userId: qr.user_id,
+      tableId: qr.table_id,
+      isActive: qr.is_active,
+      createdAt: qr.created_at,
+      qrData: qr.qr_data  // Include the actual QR data for testing
+    }));
+    
     res.json({
       success: true,
       data: {
         totalQRCodes: allQRs.length,
         activeCount: activeQRs?.count || 0,
         inactiveCount: inactiveQRs?.count || 0,
-        recentCodes: allQRs.slice(0, 5),
-        allCodes: allQRs
+        testCodes: testCodes,
+        allCodesCount: allQRs.length,
+        notice: 'Use testCodes with /debug/verify-qr endpoint to test verification'
       }
     });
   } catch (error: any) {
