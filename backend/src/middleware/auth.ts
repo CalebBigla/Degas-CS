@@ -12,11 +12,18 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
+  logger.info('🔐 [AUTH CHECK] Processing scanner request', {
+    path: req.path,
+    hasAuthHeader: !!authHeader,
+    hasToken: !!token,
+    authHeaderPreview: authHeader ? authHeader.substring(0, 50) + '...' : 'NONE'
+  });
+
   if (!token) {
-    logger.warn('Authentication failed: No token provided', {
+    logger.warn('🔐 [AUTH FAIL] No token in request', {
       ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      path: req.path
+      path: req.path,
+      authHeader: !!authHeader
     });
     return res.status(401).json({ 
       success: false, 
@@ -28,15 +35,20 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     // Verify JWT token with proper secret
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      logger.error('JWT_SECRET not configured');
+      logger.error('🔐 [AUTH ERROR] JWT_SECRET not configured');
       return res.status(500).json({ 
         success: false, 
         error: 'Authentication service misconfigured' 
       });
     }
 
+    logger.info('🔐 [AUTH CHECK] Verifying JWT token...');
     const decoded = jwt.verify(token, jwtSecret) as any;
     
+    logger.info('🔐 [AUTH CHECK] JWT verified, looking up admin', {
+      adminId: decoded.adminId
+    });
+
     // Database-only authentication (no mock fallback)
     const db = getDatabase();
     const admin = await db.get(
@@ -46,7 +58,7 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
     if (admin) {
       req.admin = admin;
-      logger.debug('Authentication successful', {
+      logger.info('🔐 [AUTH SUCCESS] Admin authenticated', {
         adminId: admin.id,
         username: admin.username,
         role: admin.role,
@@ -55,7 +67,7 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
       return next();
     }
 
-    logger.warn('Authentication failed: Admin not found in database', {
+    logger.warn('🔐 [AUTH FAIL] Admin not found in database', {
       adminId: decoded.adminId,
       ip: req.ip,
       path: req.path
@@ -67,8 +79,9 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      logger.warn('JWT verification failed', {
+      logger.warn('🔐 [AUTH FAIL] JWT verification failed', {
         error: error.message,
+        code: (error as any).code,
         ip: req.ip,
         path: req.path
       });

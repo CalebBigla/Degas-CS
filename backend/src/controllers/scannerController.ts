@@ -21,8 +21,13 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     const { qrData, scannerLocation, selectedTableId } = req.body as VerifyQRRequest & { selectedTableId?: string };
     const scannedBy = req.admin?.id;
 
-    logger.info('🎯 ========== QR VERIFICATION START ==========');
-    logger.info('📍 Request details', { 
+    logger.info('🎯 [VERIFY_QR] ========== REQUEST RECEIVED ==========');
+    logger.info('🎯 [VERIFY_QR] Admin authenticated', {
+      adminId: scannedBy,
+      adminUsername: req.admin?.username
+    });
+
+    logger.info('🎯 [VERIFY_QR] Request payload:', { 
       scannerLocation, 
       scannedBy,
       selectedTableId: selectedTableId || 'all-tables',
@@ -31,10 +36,10 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     });
 
     // Use the new database verification method with optional table filter
-    logger.info('📍 Calling QRService.verifyQRFromDatabase...');
+    logger.info('🎯 [VERIFY_QR] Calling QRService.verifyQRFromDatabase...');
     const verification = await QRService.verifyQRFromDatabase(qrData, selectedTableId);
     
-    logger.info('📍 Verification complete', {
+    logger.info('🎯 [VERIFY_QR] Service returned:', {
       valid: verification.valid,
       hasUser: !!verification.user,
       hasTable: !!verification.table,
@@ -42,7 +47,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     });
     
     if (!verification.valid) {
-      logger.warn('❌ VERIFICATION FAILED', { 
+      logger.warn('🎯 [VERIFY_QR] ❌ VERIFICATION FAILED', { 
         reason: verification.error,
         qrDataPreview: qrData?.substring(0, 50)
       });

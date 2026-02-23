@@ -269,6 +269,20 @@ app.use('/api/*', (req, res, next) => {
   next();
 });
 
+// DEBUG: Log all scanner requests before any other middleware
+app.use('/api/scanner', (req, res, next) => {
+  logger.info('🎯 [INCOMING REQUEST] Scanner endpoint hit', {
+    method: req.method,
+    path: req.path,
+    url: req.url,
+    hasAuth: !!req.headers.authorization,
+    contentType: req.headers['content-type'],
+    bodyLength: req.body ? JSON.stringify(req.body).length : 0,
+    bodyPreview: req.body ? JSON.stringify(req.body).substring(0, 100) : 'empty'
+  });
+  next();
+});
+
 // Initialize database and register routes
 async function initializeBackend() {
   try {
