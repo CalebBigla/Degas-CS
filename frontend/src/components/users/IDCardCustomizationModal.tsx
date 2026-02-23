@@ -107,7 +107,7 @@ export function IDCardCustomizationModal({ isOpen, onClose, user, table }: IDCar
 
     try {
       const token = localStorage.getItem('degas_token');
-      const response = await fetch(`/api/tables/${table.id}/users/${user.id}/card/custom`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tables/${table.id}/users/${user.id}/card/custom`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
