@@ -1666,14 +1666,15 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     logger.info(`📌 CHECKPOINT 5: Generating QR code`);
     let qrResult;
     try {
-      // Use user.uuid (the actual user identifier) not user.id (internal database ID)
-      qrResult = await QRService.generateSecureQR(user.uuid, tableId);
-      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0, userUuid: user.uuid });
+      // Use user.id (internal database ID) to match the foreign key constraint
+      // The QR payload will still use user.uuid for verification
+      qrResult = await QRService.generateSecureQR(user.id, tableId);
+      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0, userId: user.id });
     } catch (qrError: any) {
       logger.error(`❌ CHECKPOINT 5a FAILED: QR code generation error`, {
         error: qrError instanceof Error ? qrError.message : String(qrError),
         stack: qrError instanceof Error ? qrError.stack : undefined,
-        userUuid: user.uuid,
+        userId: user.id,
         tableId
       });
       throw new Error(`QR code generation failed: ${qrError?.message || String(qrError)}`);
@@ -1682,7 +1683,8 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     // Build card data - handle both array-based and object-based visibleFields
     logger.info(`📌 CHECKPOINT 6: Building card data object`);
     const cardData = {
-      id: user.uuid,
+      id: user.id,  // Use internal database ID for foreign key constraint
+      uuid: user.uuid,  // Keep UUID for display/reference
       tableId: tableId,
       name: '',
       role: '',
