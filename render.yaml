@@ -61,4 +61,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://degas-cs-backend.onrender.com/api
+        value: https://degas-cs-backend-brmk.onrender.com/api
