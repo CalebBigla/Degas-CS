@@ -3,6 +3,13 @@ import toast from 'react-hot-toast';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
+// Debug: Log the API URL being used
+console.log('🔧 API Configuration:', {
+  VITE_API_URL: (import.meta as any).env?.VITE_API_URL,
+  API_BASE_URL,
+  allEnvVars: (import.meta as any).env
+});
+
 // Backend readiness state
 let isBackendReady = false;
 let healthCheckPromise: Promise<void> | null = null;
