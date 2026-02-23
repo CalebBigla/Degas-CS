@@ -29,9 +29,10 @@ router.get('/tables', getAllTables);
 router.get('/test-qr/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    const { tableId } = req.query;
     const { QRService } = await import('../services/qrService');
     
-    const { qrData, qrImage } = await QRService.generateSecureQR(userId);
+    const { qrData, qrImage } = await QRService.generateSecureQR(userId, tableId as string || undefined);
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const verificationUrl = `${baseUrl}/verify/${encodeURIComponent(qrData)}`;
     
