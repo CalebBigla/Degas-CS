@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 
 // Import utilities
 import logger from './config/logger';
-import { initializeDatabase, testDatabaseConnection, verifyDatabaseSchema } from './config/database';
+import { initializeDatabase, testDatabaseConnection, verifyDatabaseSchema, getDatabase } from './config/database';
 
 // Load environment variables
 dotenv.config();
@@ -267,7 +267,7 @@ app.get('/api/scanner/debug/qr-codes', async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 20
     `);
-    const testCodes = allQRs.slice(0, 3).map(qr => ({
+    const testCodes = allQRs.slice(0, 3).map((qr: any) => ({
       id: qr.id,
       userId: qr.user_id,
       tableId: qr.table_id,
