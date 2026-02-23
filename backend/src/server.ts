@@ -261,27 +261,43 @@ app.get('/api/scanner/debug/qr-codes', async (req, res) => {
   try {
     const db = getDatabase();
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
+    // Get QR codes that match existing users
     const allQRs = await db.all(`
       SELECT id, user_id, table_id, qr_data, is_active, created_at, scan_count
       FROM qr_codes
       ORDER BY created_at DESC
       LIMIT 20
     `);
-    const testCodes = allQRs.slice(0, 3).map((qr: any) => ({
-      id: qr.id,
-      userId: qr.user_id,
-      tableId: qr.table_id,
-      isActive: qr.is_active,
-      createdAt: qr.created_at,
-      qrData: qr.qr_data  
-    }));
+    
+    // Get all active users from dynamic_users
+    const users = await db.all(`
+      SELECT id, data FROM dynamic_users LIMIT 10
+    `);
+    
+    logger.info('DEBUG: Users in database:', { count: users?.length || 0 });
+    logger.info('DEBUG: QR codes in database:', { count: allQRs?.length || 0 });
+    
     const activeQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 1 : 'true'}`);
+    
     res.json({
       success: true,
       data: {
-        totalQRCodes: allQRs.length,
+        totalQRCodes: allQRs?.length || 0,
         activeCount: activeQRs?.count || 0,
-        testCodes: testCodes
+        usersInDatabase: users?.length || 0,
+        existingQRCodes: allQRs?.slice(0, 3).map((qr: any) => ({
+          id: qr.id,
+          userId: qr.user_id,
+          tableId: qr.table_id,
+          isActive: qr.is_active,
+          createdAt: qr.created_at
+        })) || [],
+        availableUsers: users?.slice(0, 5).map((u: any) => ({
+          id: u.id,
+          name: u.data?.fullName || 'Unknown',
+          table: u.data?.table || 'Unknown'
+        })) || []
       }
     });
   } catch (error: any) {
