@@ -1463,10 +1463,10 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
               userData = user.data;
             }
             
-            // Generate QR code
-            logger.info('🔲 Generating QR code', { userId: user.id, tableId });
-            const qrResult = await QRService.generateSecureQR(user.id, tableId);
-            logger.info('✅ QR code generated', { userId: user.id });
+            // Generate QR code with UUID (for verification lookup)
+            logger.info('🔲 Generating QR code', { userUuid: user.uuid, tableId });
+            const qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+            logger.info('✅ QR code generated', { userUuid: user.uuid });
             
             // Generate PDF
             logger.info('📄 Generating PDF', { userId: user.id, userName: userData.fullName });
@@ -1666,10 +1666,10 @@ export const generateCustomIDCard = async (req: AuthRequest, res: Response) => {
     logger.info(`📌 CHECKPOINT 5: Generating QR code`);
     let qrResult;
     try {
-      // Use user.id (internal database ID) to match the foreign key constraint
-      // The QR payload will still use user.uuid for verification
-      qrResult = await QRService.generateSecureQR(user.id, tableId);
-      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0, userId: user.id });
+      // Use user.uuid for QR generation (verification searches by UUID)
+      // But store user.id in qr_codes table for foreign key constraint
+      qrResult = await QRService.generateSecureQR(user.uuid, tableId);
+      logger.info(`✅ CHECKPOINT 5a: QR code generated`, { qrDataLength: qrResult.qrData?.length || 0, userUuid: user.uuid });
     } catch (qrError: any) {
       logger.error(`❌ CHECKPOINT 5a FAILED: QR code generation error`, {
         error: qrError instanceof Error ? qrError.message : String(qrError),
@@ -1883,7 +1883,7 @@ export const generateBulkDownloadCustom = async (req: AuthRequest, res: Response
     for (const user of users) {
       try {
         const userData = JSON.parse(user.data);
-        const qrResult = await QRService.generateSecureQR(user.id, tableId);
+        const qrResult = await QRService.generateSecureQR(user.uuid, tableId);
         
         // Generate custom card data
         const cardData = {

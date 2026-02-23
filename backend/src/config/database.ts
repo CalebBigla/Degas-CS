@@ -73,12 +73,15 @@ async function initializePostgreSQL(): Promise<void> {
       CREATE TABLE IF NOT EXISTS access_logs (
         id SERIAL PRIMARY KEY,
         user_id UUID,
+        table_id UUID,
+        qr_code_id UUID,
         scanner_location VARCHAR(255),
         access_granted BOOLEAN NOT NULL,
         scanned_by UUID,
         scan_timestamp TIMESTAMP DEFAULT NOW(),
         ip_address VARCHAR(45),
-        user_agent TEXT
+        user_agent TEXT,
+        denial_reason TEXT
       )
     `);
 
@@ -177,6 +180,34 @@ export async function verifyDatabaseSchema(): Promise<void> {
       
       if (!result) {
         throw new Error(`Missing required table: ${tableName}`);
+      }
+    }
+    
+    // For PostgreSQL, add missing columns to access_logs if they don't exist
+    if (dbType === 'postgresql') {
+      try {
+        // Check and add missing columns to access_logs
+        const columnsToAdd = [
+          { name: 'table_id', type: 'UUID' },
+          { name: 'qr_code_id', type: 'UUID' },
+          { name: 'denial_reason', type: 'TEXT' }
+        ];
+        
+        for (const col of columnsToAdd) {
+          try {
+            await db.run(`
+              ALTER TABLE access_logs 
+              ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}
+            `);
+            logger.info(`Added missing column to access_logs: ${col.name}`);
+          } catch (altError: any) {
+            if (!altError.message?.includes('already exists') && !altError.message?.includes('duplicate')) {
+              logger.warn(`Column addition attempt for ${col.name}:`, altError.message);
+            }
+          }
+        }
+      } catch (migrationError) {
+        logger.warn('Column migration check completed (non-fatal):', migrationError);
       }
     }
     

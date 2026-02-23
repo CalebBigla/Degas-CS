@@ -331,9 +331,9 @@ export class PDFService {
         });
       }
 
-      // Generate QR code with tableId (use 'default' if not provided)
+      // Generate QR code with UUID (for verification lookup)
       const tableId = user.tableId || user.table_id || 'default';
-      const { qrImage } = await QRService.generateSecureQR(safeUser.id, tableId);
+      const { qrImage } = await QRService.generateSecureQR(safeUser.uuid || safeUser.id, tableId);
       
       // Convert base64 QR image to bytes and embed
       const qrImageBytes = Buffer.from(qrImage.split(',')[1], 'base64');

@@ -188,7 +188,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
         SELECT 
           al.id,
           al.user_id as "userId",
-          (du.data::jsonb->>'fullName') as "userName",
+          COALESCE((du.data::jsonb->>'fullName'), 'Unknown') as "userName",
           du.photo_url as "userPhoto",
           al.table_id as "tableId",
           t.name as "tableName",
