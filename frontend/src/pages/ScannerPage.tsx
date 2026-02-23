@@ -110,11 +110,21 @@ export function ScannerPage() {
 
   const handleScanSuccess = async (qrData: string) => {
     try {
+      console.log('Sending QR verification request:', { qrData: qrData.substring(0, 50) + '...', selectedTableId });
+      
       const response = await api.post('/scanner/verify', { 
         qrData,
         selectedTableId: selectedTableId || undefined
       });
-      const result = response.data;
+      
+      console.log('Received response:', response.data);
+      
+      // Validate response structure
+      if (!response.data || typeof response.data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+      
+      const result = response.data.data || response.data;
       
       setScanResult(result);
       setShowResult(true);
@@ -126,9 +136,28 @@ export function ScannerPage() {
       }, 5000);
       
     } catch (error: any) {
+      console.error('QR verification error:', error);
+      
+      // Handle different error types
+      let errorMessage = 'Invalid QR code';
+      
+      if (error.response) {
+        // Server responded with error
+        errorMessage = error.response.data?.error || error.response.data?.message || 'Verification failed';
+        console.error('Server error response:', error.response.data);
+      } else if (error.request) {
+        // Request made but no response
+        errorMessage = 'No response from server. Please check your connection.';
+        console.error('No response received:', error.request);
+      } else if (error.message) {
+        // Error in request setup
+        errorMessage = error.message;
+      }
+      
       setScanResult({
         success: false,
-        message: error.response?.data?.message || 'Invalid QR code'
+        message: errorMessage,
+        accessGranted: false
       });
       setShowResult(true);
       

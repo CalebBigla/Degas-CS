@@ -121,8 +121,31 @@ export function ScannerLandingPage() {
         }),
       });
 
-      const data = await response.json();
-      console.log('Verification response:', data);
+      // Defensive JSON parsing - handle empty or invalid responses
+      let data;
+      try {
+        const text = await response.text();
+        
+        if (!text) {
+          throw new Error('Server returned empty response');
+        }
+
+        try {
+          data = JSON.parse(text);
+        } catch (parseError) {
+          console.error('❌ Invalid JSON returned by server:', {
+            statusCode: response.status,
+            responseText: text?.substring(0, 200),
+            parseError: (parseError as Error)?.message
+          });
+          throw new Error(`Server returned invalid response: ${(parseError as Error)?.message}`);
+        }
+      } catch (textError: any) {
+        console.error('❌ Failed to read response:', textError?.message);
+        throw new Error(`Failed to read server response: ${textError?.message}`);
+      }
+
+      console.log('✅ Verification response:', data);
 
       if (data.success && data.data) {
         // Play success sound
