@@ -291,7 +291,8 @@ app.get('/api/scanner/debug/qr-codes', async (req, res) => {
           userId: qr.user_id,
           tableId: qr.table_id,
           isActive: qr.is_active,
-          createdAt: qr.created_at
+          createdAt: qr.created_at,
+          qrData: qr.qr_data
         })) || [],
         availableUsers: users?.slice(0, 5).map((u: any) => ({
           id: u.id,
