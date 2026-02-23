@@ -313,3 +313,198 @@ export const getAllTables = async (
     });
   }
 };
+
+// DEBUG: Check QR codes in database
+export const debugQRCodes = async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
+    logger.info('📊 [DEBUG QR] Checking QR codes in database...');
+    
+    // Get all QR codes
+    const allQRs = await db.all(`
+      SELECT id, user_id, table_id, is_active, created_at, scan_count
+      FROM qr_codes
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    
+    logger.info('📊 [DEBUG QR] QR codes found:', {
+      count: allQRs.length,
+      qrCodes: allQRs.map(qr => ({
+        id: qr.id,
+        userId: qr.user_id,
+        tableId: qr.table_id,
+        isActive: qr.is_active,
+        createdAt: qr.created_at,
+        scanCount: qr.scan_count
+      }))
+    });
+
+    // Get count by status
+    const activeQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 1 : 'true'}`);
+    const inactiveQRs = await db.get(`SELECT COUNT(*) as count FROM qr_codes WHERE is_active = ${dbType === 'sqlite' ? 0 : 'false'}`);
+    
+    res.json({
+      success: true,
+      data: {
+        totalQRCodes: allQRs.length,
+        activeCount: activeQRs?.count || 0,
+        inactiveCount: inactiveQRs?.count || 0,
+        recentCodes: allQRs.slice(0, 5),
+        allCodes: allQRs
+      }
+    });
+  } catch (error: any) {
+    logger.error('📊 [DEBUG QR] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Debug check failed',
+      details: error?.message || String(error)
+    });
+  }
+};
+
+// DEBUG: Test QR verification with a specific code
+export const debugVerifyQR = async (req: Request, res: Response) => {
+  try {
+    const { qrData } = req.body;
+    
+    if (!qrData) {
+      return res.status(400).json({
+        success: false,
+        error: 'qrData required in body'
+      });
+    }
+    
+    logger.info('🔐 [DEBUG VERIFY] Testing QR verification...', {
+      qrDataLength: qrData.length,
+      qrDataPreview: qrData.substring(0, 100)
+    });
+
+    // Step 1: Verify signature
+    logger.info('🔐 [DEBUG VERIFY] Step 1: Verifying signature...');
+    const signatureResult = QRService.verifyQR(qrData);
+    logger.info('🔐 [DEBUG VERIFY] Signature result:', {
+      valid: signatureResult.valid,
+      userId: signatureResult.payload?.userId,
+      error: signatureResult.error
+    });
+
+    if (!signatureResult.valid) {
+      return res.status(400).json({
+        success: false,
+        step: 'SIGNATURE_VERIFICATION',
+        error: signatureResult.error,
+        details: 'QR code signature is invalid'
+      });
+    }
+
+    const userId = signatureResult.payload?.userId;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        step: 'PAYLOAD_EXTRACTION',
+        error: 'Could not extract userId from QR payload',
+        details: 'The QR signature is valid but userId is missing from payload'
+      });
+    }
+
+    // Step 2: Check if user exists and find their table
+    logger.info('🔐 [DEBUG VERIFY] Step 2: Searching for user...', { userId });
+    const userResult = await TableSchemaRegistry.findUserAcrossTables(userId);
+    logger.info('🔐 [DEBUG VERIFY] User search result:', {
+      userFound: !!userResult,
+      tableId: userResult?.tableId,
+      tableName: userResult?.tableName,
+      userId: userResult?.user?.id
+    });
+
+    if (!userResult) {
+      return res.status(400).json({
+        success: false,
+        step: 'USER_LOOKUP',
+        userId,
+        error: 'User not found in any table',
+        details: 'The user ID from the QR code does not exist in the database'
+      });
+    }
+
+    // Step 3: Check if QR code record exists
+    logger.info('🔐 [DEBUG VERIFY] Step 3: Checking QR record in database...', { userId });
+    const db = getDatabase();
+    const qrRecord = await db.get(`
+      SELECT id, is_active, scan_count, created_at
+      FROM qr_codes
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [userId]);
+
+    logger.info('🔐 [DEBUG VERIFY] QR record check:', {
+      found: !!qrRecord,
+      isActive: qrRecord?.is_active,
+      scanCount: qrRecord?.scan_count,
+      createdAt: qrRecord?.created_at
+    });
+
+    if (!qrRecord) {
+      return res.status(400).json({
+        success: false,
+        step: 'QR_RECORD_LOOKUP',
+        userId,
+        error: 'No QR code record found for this user',
+        details: 'The user exists but has no QR code stored in the database',
+        userData: {
+          id: userResult.user.id,
+          name: userResult.user.data?.fullName,
+          tableId: userResult.tableId
+        }
+      });
+    }
+
+    if (!qrRecord.is_active) {
+      return res.status(400).json({
+        success: false,
+        step: 'QR_INACTIVE',
+        userId,
+        error: 'QR code is inactive',
+        details: 'The QR code for this user is marked as inactive'
+      });
+    }
+
+    res.json({
+      success: true,
+      verification: 'PASSED',
+      steps: {
+        signatureVerification: 'PASSED',
+        userLookup: 'PASSED',
+        qrRecordLookup: 'PASSED'
+      },
+      data: {
+        user: {
+          id: userResult.user.id,
+          name: userResult.user.data?.fullName,
+          tableId: userResult.tableId,
+          tableName: userResult.tableName
+        },
+        qrRecord: {
+          id: qrRecord.id,
+          scanCount: qrRecord.scan_count,
+          createdAt: qrRecord.created_at,
+          isActive: qrRecord.is_active
+        }
+      }
+    });
+  } catch (error: any) {
+    logger.error('🔐 [DEBUG VERIFY] Exception:', error);
+    res.status(500).json({
+      success: false,
+      step: 'EXCEPTION',
+      error: error?.message || String(error),
+      details: error?.stack
+    });
+  }
+};

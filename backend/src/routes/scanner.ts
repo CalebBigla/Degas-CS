@@ -5,12 +5,18 @@ import {
   verifyQRValidation,
   getUserByHash,
   getAccessLogs,
-  getAllTables
+  getAllTables,
+  debugQRCodes,
+  debugVerifyQR
 } from '../controllers/scannerController';
 
 const router = Router();
 
-// All routes require authentication
+// DEBUG: Routes available without auth for troubleshooting
+router.get('/debug/qr-codes', debugQRCodes);
+router.post('/debug/verify-qr', debugVerifyQR);
+
+// All authenticated routes require authentication
 router.use(authenticateToken);
 
 // Verify QR code
