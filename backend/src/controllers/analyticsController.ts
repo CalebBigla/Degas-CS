@@ -136,7 +136,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
       if (dbType === 'sqlite') {
         whereClause += ` AND (json_extract(du.data, '$.fullName') LIKE ? OR t.name LIKE ?)`;
       } else {
-        whereClause += ` AND ((du.data->>'fullName') LIKE $${params.length + 1} OR t.name LIKE $${params.length + 2})`;
+        whereClause += ` AND ((du.data::jsonb->>'fullName') LIKE $${params.length + 1} OR t.name LIKE $${params.length + 2})`;
       }
       params.push(`%${search}%`, `%${search}%`);
     }
@@ -188,7 +188,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
         SELECT 
           al.id,
           al.user_id as "userId",
-          (du.data->>'fullName') as "userName",
+          (du.data::jsonb->>'fullName') as "userName",
           du.photo_url as "userPhoto",
           al.table_id as "tableId",
           t.name as "tableName",
@@ -325,12 +325,12 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
     } else {
       topUsersQuery = `
         SELECT 
-          (du.data->>'fullName') as name,
+          (du.data::jsonb->>'fullName') as name,
           COUNT(*) as scans
         FROM access_logs al
         LEFT JOIN dynamic_users du ON al.user_id = du.id
         WHERE ${dateFilter}
-        GROUP BY al.user_id, (du.data->>'fullName')
+        GROUP BY al.user_id, (du.data::jsonb->>'fullName')
         ORDER BY scans DESC
         LIMIT 10
       `;
@@ -357,7 +357,7 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
       recentLogsQuery = `
         SELECT 
           al.id,
-          (du.data->>'fullName') as "userName",
+          (du.data::jsonb->>'fullName') as "userName",
           al.scan_timestamp as timestamp,
           CASE WHEN al.access_granted = true THEN 'granted' ELSE 'denied' END as status,
           al.scanner_location as location
