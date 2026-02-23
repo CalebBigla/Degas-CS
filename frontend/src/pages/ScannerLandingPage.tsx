@@ -46,7 +46,7 @@ export function ScannerLandingPage() {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/scanner/tables`, { headers });
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/scanner/tables`, { headers });
         const data = await response.json();
         
         if (data.success && data.data) {
@@ -111,7 +111,7 @@ export function ScannerLandingPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/scanner/verify`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/scanner/verify`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ 

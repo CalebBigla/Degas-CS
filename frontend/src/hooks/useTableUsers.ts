@@ -45,7 +45,7 @@ export const useTableUsers = (tableId: string): UseTableUsersResult => {
         ...(searchTerm && { search: searchTerm })
       });
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tables/${tableId}/users?${params}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/tables/${tableId}/users?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -73,7 +73,7 @@ export const useTableUsers = (tableId: string): UseTableUsersResult => {
         formData.append('photo', photo);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tables/${tableId}/users`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/tables/${tableId}/users`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -104,7 +104,7 @@ export const useTableUsers = (tableId: string): UseTableUsersResult => {
         formData.append('photo', photo);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tables/${tableId}/users/${userId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/tables/${tableId}/users/${userId}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -128,7 +128,7 @@ export const useTableUsers = (tableId: string): UseTableUsersResult => {
   const deleteUser = useCallback(async (userId: string): Promise<boolean> => {
     try {
       const token = localStorage.getItem('degas_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tables/${tableId}/users/${userId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/tables/${tableId}/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
