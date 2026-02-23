@@ -79,21 +79,38 @@ export class QRService {
 
   static verifyQR(qrData: string): { valid: boolean; payload?: QRPayload; error?: string } {
     try {
-      logger.info('Verifying QR data', { qrDataLength: qrData.length, qrDataPreview: qrData.substring(0, 50) });
+      logger.info('🔐 [VERIFY_QR] START - Verifying QR data', { 
+        qrDataLength: qrData.length, 
+        qrDataPreview: qrData.substring(0, 50) 
+      });
       
       const decoded = JSON.parse(Buffer.from(qrData, 'base64').toString());
       const { data, signature } = decoded;
 
+      logger.info('🔐 [VERIFY_QR] Decoded QR:', {
+        hasData: !!data,
+        hasSignature: !!signature,
+        dataPreview: data?.substring(0, 80) || 'NONE',
+        signatureLength: signature?.length || 0
+      });
+
       if (!data || !signature) {
-        logger.warn('QR verification failed: Missing data or signature');
+        logger.warn('🔐 [VERIFY_QR] FAIL - Missing data or signature');
         return { valid: false, error: 'Invalid QR code format' };
       }
 
       // Verify HMAC signature
+      logger.info('🔐 [VERIFY_QR] Computing expected signature...');
       const expectedSignature = crypto
         .createHmac('sha256', this.QR_SECRET)
         .update(data)
         .digest('hex');
+
+      logger.info('🔐 [VERIFY_QR] Signature comparison:', {
+        providedSignature: signature.substring(0, 16) + '...',
+        expectedSignature: expectedSignature.substring(0, 16) + '...',
+        match: signature === expectedSignature
+      });
 
       const isValid = crypto.timingSafeEqual(
         Buffer.from(signature, 'hex'),
@@ -101,23 +118,36 @@ export class QRService {
       );
 
       if (!isValid) {
-        logger.warn('QR verification failed: Signature mismatch');
+        logger.warn('🔐 [VERIFY_QR] FAIL - Signature mismatch');
         return { valid: false, error: 'QR code signature verification failed' };
       }
 
+      logger.info('🔐 [VERIFY_QR] Signature valid ✓');
+
       const payload: QRPayload = JSON.parse(data);
+      logger.info('🔐 [VERIFY_QR] Payload parsed:', {
+        userId: payload.userId,
+        timestamp: payload.timestamp,
+        nonce: payload.nonce?.substring(0, 8) + '...',
+        age: Date.now() - payload.timestamp
+      });
 
       // Check if QR code is not too old (24 hours)
       const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      if (Date.now() - payload.timestamp > maxAge) {
-        logger.warn('QR verification failed: Expired', { age: Date.now() - payload.timestamp });
+      const age = Date.now() - payload.timestamp;
+      
+      if (age > maxAge) {
+        logger.warn('🔐 [VERIFY_QR] FAIL - Expired', { age, maxAge, ageHours: Math.round(age / 1000 / 60 / 60) });
         return { valid: false, error: 'QR code has expired' };
       }
 
-      logger.info('QR signature verified successfully', { userId: payload.userId });
+      logger.info('🔐 [VERIFY_QR] ✅ SUCCESS - QR verified', { userId: payload.userId, ageMinutes: Math.round(age / 1000 / 60) });
       return { valid: true, payload };
     } catch (error: any) {
-      logger.error('QR verification failed:', { error: error.message, stack: error.stack });
+      logger.error('🔐 [VERIFY_QR] ❌ EXCEPTION:', { 
+        error: error.message, 
+        stack: error.stack 
+      });
       return { valid: false, error: 'Invalid QR code format' };
     }
   }
@@ -149,16 +179,27 @@ export class QRService {
         return { valid: false, error: 'Invalid QR code format' };
       }
 
-      logger.info('📌 Step 2: Searching for user', { userId, filterTableId });
+      logger.info('� Step 2: Searching for user', { userId, filterTableId, method: filterTableId ? 'findUserInTable' : 'findUserAcrossTables' });
       let userResult;
       try {
         // Find user - optionally filtered by table
         userResult = filterTableId 
           ? await TableSchemaRegistry.findUserInTable(userId, filterTableId)
           : await TableSchemaRegistry.findUserAcrossTables(userId);
-        logger.info('✅ Step 2 complete, userResult:', { found: !!userResult });
+        
+        if (userResult) {
+          logger.info('📍 Step 2 ✅ - User found:', {
+            userId: userResult.user?.id,
+            userName: userResult.user?.data?.fullName || userResult.user?.data?.name || 'N/A',
+            tableId: userResult.tableId,
+            tableName: userResult.tableName,
+            userDataKeys: Object.keys(userResult.user?.data || {}).slice(0, 5)
+          });
+        } else {
+          logger.info('📍 Step 2 ⚠️ - No user found', { userId, filterTableId });
+        }
       } catch (userSearchError: any) {
-        logger.error('❌ Step 2 FAILED - User search error:', {
+        logger.error('📍 Step 2 ❌ - User search error:', {
           error: userSearchError?.message || String(userSearchError),
           stack: userSearchError?.stack
         });
@@ -179,9 +220,24 @@ export class QRService {
       logger.info('✅ Step 3 complete, got DB connection');
 
       // Verify QR code exists and is active
-      logger.info('📌 Step 4: Checking QR record');
+      logger.info('� Step 4: Checking QR record in database', { userId });
       let qrRecord;
       try {
+        // First, log what QR codes exist for debugging
+        const allQRsForUser = await db.all(
+          `SELECT id, is_active, created_at FROM qr_codes WHERE user_id = ? ORDER BY created_at DESC`,
+          [userId]
+        );
+        logger.info('📍 Step 4 - QR codes for this user:', {
+          userId,
+          totalQRs: allQRsForUser.length,
+          qrDetails: allQRsForUser.slice(0, 3).map(q => ({
+            id: q.id,
+            isActive: q.is_active,
+            createdAt: q.created_at
+          }))
+        });
+
         qrRecord = await db.get(
           `SELECT id, scan_count, created_at FROM qr_codes 
            WHERE user_id = ? AND is_active = 1
@@ -189,9 +245,22 @@ export class QRService {
            LIMIT 1`,
           [userId]
         );
-        logger.info('✅ Step 4 complete:', { qrFound: !!qrRecord });
+
+        if (qrRecord) {
+          logger.info('📍 Step 4 ✅ - Active QR record found:', {
+            qrId: qrRecord.id,
+            scanCount: qrRecord.scan_count,
+            createdAt: qrRecord.created_at
+          });
+        } else {
+          logger.warn('📍 Step 4 ⚠️ - No active QR record found', {
+            userId,
+            activeQRCount: allQRsForUser.filter(q => q.is_active === 1).length,
+            totalQRCount: allQRsForUser.length
+          });
+        }
       } catch (qrCheckError: any) {
-        logger.error('❌ Step 4 FAILED - QR check error:', {
+        logger.error('📍 Step 4 ❌ - QR check error:', {
           error: qrCheckError?.message || String(qrCheckError),
           stack: qrCheckError?.stack,
           userId
