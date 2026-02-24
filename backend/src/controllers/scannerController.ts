@@ -92,13 +92,22 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     // Log successful scan
     try {
       const db = getDatabase();
+      logger.info('📝 Recording access log:', {
+        userId: user!.id,
+        tableId: table!.id,
+        qrCodeId: qrCode!.id,
+        scannerLocation,
+        accessGranted: true,
+        scannedBy
+      });
       await db.run(
         `INSERT INTO access_logs (user_id, table_id, qr_code_id, scanner_location, access_granted, scanned_by, scan_timestamp, ip_address, user_agent)
          VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'utc'), ?, ?)`,
         [user!.id, table!.id, qrCode!.id, scannerLocation, 1, scannedBy, req.ip, req.get('User-Agent')]
       );
+      logger.info('✅ Access log recorded successfully');
     } catch (dbError) {
-      logger.error('Failed to log access:', dbError);
+      logger.error('❌ Failed to log access:', dbError);
     }
 
     // Build result with only actual table fields - no hardcoded ones

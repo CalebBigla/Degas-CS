@@ -208,6 +208,15 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     const logs = await db.all(logsQuery, [...params, limit, offset]);
 
     logger.info(`Access logs fetched: ${logs.length} records, total: ${total}`);
+    if (logs.length > 0) {
+      logger.info('📋 Sample access log entry:', {
+        firstLog: logs[0],
+        hasUserName: !!logs[0]?.userName,
+        hasUserPhoto: !!logs[0]?.userPhoto,
+        hasTableName: !!logs[0]?.tableName,
+        userId: logs[0]?.userId
+      });
+    }
 
     res.json({
       success: true,
