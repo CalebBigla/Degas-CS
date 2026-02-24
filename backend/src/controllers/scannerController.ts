@@ -122,13 +122,26 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     };
 
     // Attach schema and field values for frontend to display dynamically
+    // If no schema exists, auto-generate from actual field values
+    let schema = tableSchema?.fields || [];
+    if (schema.length === 0 && user!.data) {
+      // Auto-generate schema from actual user data
+      schema = Object.keys(user!.data).map((fieldName, index) => ({
+        id: `${fieldName}-${index}`,
+        name: fieldName,
+        type: typeof user!.data[fieldName],
+        displayName: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, ' $1') // Convert camelCase to Title Case
+      }));
+      logger.info('📋 Auto-generated schema from user data:', { fieldCount: schema.length, fieldNames: schema.map(f => f.name) });
+    }
+
     const enrichedResult = {
       ...result,
       tableInfo: {
         id: table!.id,
         name: table!.name
       },
-      schema: tableSchema?.fields || [],
+      schema,
       fieldValues: user!.data || {}
     };
 
