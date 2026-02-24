@@ -2572,7 +2572,17 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
     }
 
     // Verify all visible fields exist in table schema
-    const schema = JSON.parse(table.schema);
+    let schema;
+    try {
+      schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
+    } catch (parseError) {
+      logger.error(`Failed to parse table schema:`, parseError);
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid table schema format'
+      });
+    }
+    
     const validColumns = schema.map((col: any) => col.name);
     const invalidFields = visibleFields.filter(field => !validColumns.includes(field));
     
@@ -2615,11 +2625,19 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
       message: 'ID card configuration updated successfully',
       data: config
     });
-  } catch (error) {
-    logger.error('Update table ID card config error:', error);
+  } catch (error: any) {
+    logger.error('❌ Update table ID card config error:', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      tableId: req.params.tableId,
+      body: req.body,
+      errorName: error?.name,
+      errorCode: error?.code
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to update table ID card configuration'
+      error: 'Failed to update table ID card configuration',
+      details: error?.message || String(error)
     });
   }
 };

@@ -76,13 +76,33 @@ export function TableIDCardCustomizationModal({
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      await api.put(`/tables/${tableId}/id-card-config`, config);
+      
+      console.log('Saving ID card config:', {
+        tableId,
+        config,
+        endpoint: `/tables/${tableId}/id-card-config`
+      });
+      
+      const response = await api.put(`/tables/${tableId}/id-card-config`, config);
+      
+      console.log('Save response:', response.data);
       
       toast.success('ID card customization saved successfully');
       onClose();
     } catch (error: any) {
-      console.error('Failed to save config:', error);
-      toast.error(error?.response?.data?.error || 'Failed to save customization');
+      console.error('Failed to save config - Full error:', error);
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
+      const errorMessage = error?.response?.data?.details 
+        || error?.response?.data?.error 
+        || error?.message 
+        || 'Failed to save customization';
+      
+      toast.error(errorMessage, { duration: 5000 });
+      
+      // Show alert with full error details for debugging
+      alert(`Error saving customization:\n\n${errorMessage}\n\nCheck browser console for more details.`);
     } finally {
       setIsSaving(false);
     }
