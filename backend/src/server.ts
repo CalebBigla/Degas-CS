@@ -399,7 +399,11 @@ app.post('/api/scanner/debug/user-data', async (req, res) => {
     }
     
     const userId = signatureResult.payload?.userId;
-    const userResult = await TableSchemaRegistry.findUserAcrossTables(userId);
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'No userId in QR payload' });
+    }
+    
+    const userResult = await TableSchemaRegistry.findUserAcrossTables(userId as string);
     
     if (!userResult) {
       return res.status(400).json({ success: false, error: 'User not found' });
