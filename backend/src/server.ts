@@ -380,6 +380,61 @@ app.post('/api/scanner/debug/verify-qr', async (req, res) => {
   }
 });
 
+// DEBUG: Show full user data structure for QR
+app.post('/api/scanner/debug/user-data', async (req, res) => {
+  try {
+    const { qrData } = req.body;
+    if (!qrData) {
+      return res.status(400).json({
+        success: false,
+        error: 'qrData required in body'
+      });
+    }
+    const { QRService } = await import('./services/qrService');
+    const { TableSchemaRegistry } = await import('./services/tableSchemaRegistry');
+    
+    const signatureResult = QRService.verifyQR(qrData);
+    if (!signatureResult.valid) {
+      return res.status(400).json({ success: false, error: 'Invalid QR' });
+    }
+    
+    const userId = signatureResult.payload?.userId;
+    const userResult = await TableSchemaRegistry.findUserAcrossTables(userId);
+    
+    if (!userResult) {
+      return res.status(400).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        userId,
+        user: {
+          id: userResult.user.id,
+          uuid: userResult.user.uuid,
+          photoUrl: userResult.user.photoUrl,
+          dataKeys: Object.keys(userResult.user.data || {}),
+          fullData: userResult.user.data
+        },
+        table: {
+          id: userResult.tableId,
+          name: userResult.tableName
+        },
+        schema: {
+          exists: !!userResult.schema,
+          fieldCount: userResult.schema?.fields?.length || 0,
+          fields: userResult.schema?.fields || []
+        }
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || String(error)
+    });
+  }
+});
+
 // Middleware to check backend readiness for all other API routes
 app.use('/api/*', (req, res, next) => {
   if (!isBackendReady) {
