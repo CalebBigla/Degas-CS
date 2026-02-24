@@ -127,37 +127,20 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       return 'Unknown User';
     };
 
-    // Build user object from schema - only include fields defined in schema
+    // Build user object from schema - only include fields displayed to user
+    // Do NOT include internal database IDs
     const buildUserFromSchema = (schema: any, data: any): any => {
       const userObj: any = {
-        id: user!.id,
+        fullName: getNameFromSchema(schema, data),
         photoUrl: user!.photoUrl,
-        status: 'active',
-        qrHash: qrCode!.id,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        status: 'active'
+        // NOTE: Do not include database id, qrHash, createdAt, updatedAt - these are internal
+        // All schema fields are already in fieldValues and will be displayed from schema
       };
 
-      if (!schema?.fields || schema.fields.length === 0) {
-        // Fallback: just return all data if no schema
-        userObj.fullName = 'Unknown User';
-        return userObj;
-      }
-
-      // Use first field as fullName
-      userObj.fullName = getNameFromSchema(schema, data);
-
-      // Add all other schema fields to user object
-      schema.fields.forEach((field: any, index: number) => {
-        if (index > 0) { // Skip first field (already set as fullName)
-          userObj[field.name] = data?.[field.name] || '';
-        }
-      });
-
       logger.info('📋 Built user object from schema:', {
-        schemaFieldCount: schema.fields.length,
-        userFieldCount: Object.keys(userObj).length,
-        nameField: schema.fields[0]?.name,
+        schemaFieldCount: schema?.fields?.length || 0,
+        userHasPhoto: !!user!.photoUrl,
         nameValue: userObj.fullName
       });
 
