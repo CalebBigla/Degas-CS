@@ -111,15 +111,67 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     }
 
     // Build result with only actual table fields - no hardcoded ones
+    // Intelligently extract name from various possible field names
+    const getUserName = (data: any): string => {
+      if (!data) return 'Unknown User';
+      
+      // Try common name field variations (case-sensitive exact match first)
+      const nameFieldCandidates = [
+        'Name', 'name', 'fullName', 'Full Name', 'full_name', 'full-name',
+        'firstName', 'first_name', 'first-name', 'lastName', 'last_name', 'last-name',
+        'staffName', 'staff_name', 'employeeName', 'employee_name',
+        'userName', 'user_name', 'displayName', 'display_name'
+      ];
+      
+      for (const fieldName of nameFieldCandidates) {
+        if (data[fieldName] && typeof data[fieldName] === 'string' && data[fieldName].trim()) {
+          return data[fieldName].trim();
+        }
+      }
+      
+      // If no name field found, use first non-empty string value
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof value === 'string' && value.trim() && key.toLowerCase() !== 'photo' && key.toLowerCase() !== 'image') {
+          return value.trim();
+        }
+      }
+      
+      return 'Unknown User';
+    };
+
+    // Helper to find role/designation field
+    const getRole = (data: any): string => {
+      if (!data) return '';
+      const roleCandidates = ['role', 'designation', 'position', 'title', 'job_title', 'jobTitle', 'Job Title'];
+      for (const field of roleCandidates) {
+        if (data[field] && typeof data[field] === 'string') {
+          return data[field].trim();
+        }
+      }
+      return '';
+    };
+
+    // Helper to find department field
+    const getDepartment = (data: any): string => {
+      if (!data) return '';
+      const deptCandidates = ['department', 'Department', 'dept', 'Dept', 'team', 'Team', 'division', 'Division'];
+      for (const field of deptCandidates) {
+        if (data[field] && typeof data[field] === 'string') {
+          return data[field].trim();
+        }
+      }
+      return '';
+    };
+
     const result: ScanResult = {
       success: true,
       user: {
         id: user!.id,
         employeeId: '', // Will be filled from actual data if exists
-        fullName: user!.data?.fullName || user!.data?.name || 'Unknown User',
-        email: user!.data?.email,
-        role: user!.data?.role || user!.data?.designation || '',
-        department: user!.data?.department,
+        fullName: getUserName(user!.data),
+        email: user!.data?.email || user!.data?.Email,
+        role: getRole(user!.data),
+        department: getDepartment(user!.data),
         photoUrl: user!.photoUrl,
         status: 'active',
         qrHash: qrCode!.id,
