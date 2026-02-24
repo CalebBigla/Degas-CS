@@ -79,7 +79,7 @@ export class DashboardService {
       const result = await db.get(
         `SELECT COUNT(DISTINCT id) as count FROM dynamic_users`
       );
-      return result?.count || 0;
+      return parseInt(result?.count || '0');
     } catch (error) {
       logger.error('Error counting total users:', error);
       return 0;
@@ -95,7 +95,7 @@ export class DashboardService {
       const result = await db.get(
         `SELECT COUNT(*) as count FROM access_logs`
       );
-      return result?.count || 0;
+      return parseInt(result?.count || '0');
     } catch (error) {
       logger.error('Error counting total scans:', error);
       return 0;
@@ -107,11 +107,14 @@ export class DashboardService {
    */
   private static async getGrantedScans(): Promise<number> {
     const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
     try {
+      const condition = dbType === 'sqlite' ? 'access_granted = 1' : 'access_granted = true';
       const result = await db.get(
-        `SELECT COUNT(*) as count FROM access_logs WHERE access_granted = 1`
+        `SELECT COUNT(*) as count FROM access_logs WHERE ${condition}`
       );
-      return result?.count || 0;
+      return parseInt(result?.count || '0');
     } catch (error) {
       logger.error('Error counting granted scans:', error);
       return 0;
@@ -124,6 +127,8 @@ export class DashboardService {
    */
   private static async getRecentScansWithUserDetails(): Promise<DashboardMetrics['recentScans']> {
     const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
     try {
       const scans = await db.all(
         `SELECT 
@@ -156,12 +161,17 @@ export class DashboardService {
           }
         }
 
+        // Handle boolean for PostgreSQL and integer for SQLite
+        const isGranted = dbType === 'sqlite' 
+          ? scan.access_granted === 1 
+          : scan.access_granted === true;
+
         return {
           id: scan.id.toString(),
           userName,
           userPhoto: scan.photo_url || undefined,
           tableName: scan.table_name || 'Unknown Table',
-          status: scan.access_granted === 1 ? 'granted' : 'denied',
+          status: isGranted ? 'granted' : 'denied',
           timestamp: new Date(scan.scan_timestamp),
           location: scan.scanner_location || undefined
         };
@@ -181,31 +191,48 @@ export class DashboardService {
     denied: number;
   }> {
     const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
     let dateFilter = '';
-    switch (period) {
-      case 'today':
-        dateFilter = `DATE(scan_timestamp) = DATE('now')`;
-        break;
-      case 'week':
-        dateFilter = `scan_timestamp >= datetime('now', '-7 days')`;
-        break;
-      case 'month':
-        dateFilter = `scan_timestamp >= datetime('now', '-30 days')`;
-        break;
+    if (dbType === 'sqlite') {
+      switch (period) {
+        case 'today':
+          dateFilter = `DATE(scan_timestamp) = DATE('now')`;
+          break;
+        case 'week':
+          dateFilter = `scan_timestamp >= datetime('now', '-7 days')`;
+          break;
+        case 'month':
+          dateFilter = `scan_timestamp >= datetime('now', '-30 days')`;
+          break;
+      }
+    } else {
+      // PostgreSQL
+      switch (period) {
+        case 'today':
+          dateFilter = `DATE(scan_timestamp) = CURRENT_DATE`;
+          break;
+        case 'week':
+          dateFilter = `scan_timestamp >= (NOW() - INTERVAL '7 days')`;
+          break;
+        case 'month':
+          dateFilter = `scan_timestamp >= (NOW() - INTERVAL '30 days')`;
+          break;
+      }
     }
 
     try {
+      const grantedCondition = dbType === 'sqlite' ? 'access_granted = 1' : 'access_granted = true';
       const result = await db.get(
         `SELECT 
           COUNT(*) as total,
-          SUM(CASE WHEN access_granted = 1 THEN 1 ELSE 0 END) as granted
+          SUM(CASE WHEN ${grantedCondition} THEN 1 ELSE 0 END) as granted
         FROM access_logs
         WHERE ${dateFilter}`
       );
 
-      const total = result?.total || 0;
-      const granted = result?.granted || 0;
+      const total = parseInt(result?.total || '0');
+      const granted = parseInt(result?.granted || '0');
       const denied = total - granted;
 
       return { scans: total, granted, denied };
