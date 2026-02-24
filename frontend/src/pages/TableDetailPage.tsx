@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Search, Edit2, Trash2, Download, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Edit2, Trash2, Download, Settings, Mail } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { UserModal } from '../components/users/UserModal';
 import { TableIDCardCustomizationModal } from '../components/settings/TableIDCardCustomizationModal';
+import { SendEmailModal } from '../components/users/SendEmailModal';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -37,6 +38,8 @@ export function TableDetailPage() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailUser, setEmailUser] = useState<{ id: string; name: string } | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
 
@@ -392,6 +395,21 @@ export function TableDetailPage() {
                         <Edit2 className="h-4 w-4" />
                       </button>
                       
+                      {/* Send Email Button */}
+                      <button
+                        onClick={() => {
+                          setEmailUser({
+                            id: user.id,
+                            name: String(user.data[table.schema[0]?.name] || 'User')
+                          });
+                          setIsEmailModalOpen(true);
+                        }}
+                        className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="Send ID Card via Email"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </button>
+                      
                       {/* Download ID Card Button */}
                       <button
                         onClick={() => handleGenerateIDCard(user.id)}
@@ -449,6 +467,21 @@ export function TableDetailPage() {
         tableName={table.name}
         tableSchema={table.schema}
       />
+
+      {/* Send Email Modal */}
+      {emailUser && (
+        <SendEmailModal
+          isOpen={isEmailModalOpen}
+          onClose={() => {
+            setIsEmailModalOpen(false);
+            setEmailUser(null);
+          }}
+          tableId={tableId!}
+          tableName={table.name}
+          userId={emailUser.id}
+          userName={emailUser.name}
+        />
+      )}
     </div>
   );
 }

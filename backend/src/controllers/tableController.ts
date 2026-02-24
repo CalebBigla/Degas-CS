@@ -14,6 +14,7 @@ import { Readable } from 'stream';
 import { PDFService } from '../services/pdfService';
 import { QRService } from '../services/qrService';
 import { ImageService } from '../services/imageService';
+import { EmailService } from '../services/emailService';
 
 // Define interfaces for this module
 interface Table {
@@ -2638,6 +2639,139 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
       success: false,
       error: 'Failed to update table ID card configuration',
       details: error?.message || String(error)
+    });
+  }
+};
+
+
+// ========== EMAIL ID CARD ==========
+
+/**
+ * Send ID card via email
+ */
+export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
+  try {
+    const { tableId, userId } = req.params;
+    const { email } = req.body;
+
+    logger.info('📧 Sending ID card email', {
+      tableId,
+      userId,
+      email
+    });
+
+    // Validate email
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid email address is required'
+      });
+    }
+
+    // Check if email service is configured
+    if (!EmailService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Email service is not configured. Please contact administrator.'
+      });
+    }
+
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    const paramPlaceholder1 = dbType === 'sqlite' ? '?' : '$1';
+    const paramPlaceholder2 = dbType === 'sqlite' ? '?' : '$2';
+
+    // Get table
+    const table = await db.get(
+      `SELECT id, name, schema FROM tables WHERE id = ${paramPlaceholder1}`,
+      [tableId]
+    );
+
+    if (!table) {
+      return res.status(404).json({
+        success: false,
+        error: 'Table not found'
+      });
+    }
+
+    // Get user
+    const user = await db.get(
+      `SELECT id, uuid, data, photo_url FROM dynamic_users WHERE id = ${paramPlaceholder1} AND table_id = ${paramPlaceholder2}`,
+      [userId, tableId]
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Parse user data
+    const userData = typeof user.data === 'string' ? JSON.parse(user.data) : user.data;
+    const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
+    
+    // Get user name from first field in schema
+    const userName = schema[0]?.name && userData[schema[0].name] 
+      ? String(userData[schema[0].name]) 
+      : 'User';
+
+    // Generate ID card PDF
+    logger.info('📄 Generating ID card PDF for email');
+    const pdfBuffer = await PDFService.generateIDCard({
+      user: {
+        id: user.id,
+        uuid: user.uuid,
+        data: userData,
+        photoUrl: user.photo_url
+      },
+      table: {
+        id: table.id,
+        name: table.name,
+        schema
+      }
+    });
+
+    // Send email
+    logger.info('📧 Sending email with PDF attachment');
+    const emailResult = await EmailService.sendIDCard({
+      to: email,
+      userName,
+      tableName: table.name,
+      pdfPath: '', // Not using file path, using buffer instead
+      pdfBuffer
+    });
+
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: emailResult.error || 'Failed to send email'
+      });
+    }
+
+    logger.info('✅ ID card email sent successfully', {
+      to: email,
+      messageId: emailResult.messageId
+    });
+
+    res.json({
+      success: true,
+      message: `ID card sent successfully to ${email}`,
+      messageId: emailResult.messageId
+    });
+
+  } catch (error: any) {
+    logger.error('❌ Send ID card email error:', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      tableId: req.params.tableId,
+      userId: req.params.userId
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send ID card email',
+      details: error?.message
     });
   }
 };

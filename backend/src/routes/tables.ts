@@ -27,7 +27,8 @@ import {
   generateBulkIDCards,
   getBulkIDCardStatus,
   getTableIDCardConfig,
-  updateTableIDCardConfig
+  updateTableIDCardConfig,
+  sendIDCardEmail
 } from '../controllers/tableController';
 
 const router = Router();
@@ -115,5 +116,8 @@ router.get('/:tableId/id-card-config', requireRole(['admin', 'super_admin']), ge
 
 // Update table's ID card configuration
 router.put('/:tableId/id-card-config', requireRole(['admin', 'super_admin']), updateTableIDCardConfig);
+
+// Send ID card via email
+router.post('/:tableId/users/:userId/send-email', requireRole(['admin', 'super_admin']), sendIDCardEmail);
 
 export default router;
