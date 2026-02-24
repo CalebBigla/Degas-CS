@@ -150,7 +150,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
       params.push(status === 'granted' ? 1 : 0);
     }
 
-    // Get total count
+    // Get total count (with filters applied)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM access_logs al
@@ -160,6 +160,34 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     `;
     const countResult = await db.get(countQuery, params);
     const total = countResult?.total || 0;
+
+    // Get overall stats (total scans, granted, denied - NO filters except status if explicitly chosen)
+    let statsWhereClause = '1=1';
+    const statsParams: any[] = [];
+    
+    if (status !== 'all') {
+      if (dbType === 'sqlite') {
+        statsWhereClause = `al.access_granted = ?`;
+      } else {
+        statsWhereClause = `al.access_granted = $1`;
+      }
+      statsParams.push(status === 'granted' ? 1 : 0);
+    }
+
+    const statsQuery = `
+      SELECT 
+        COUNT(*) as totalScans,
+        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '1' : 'true'} THEN 1 ELSE 0 END) as grantedScans,
+        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '0' : 'false'} THEN 1 ELSE 0 END) as deniedScans
+      FROM access_logs al
+      ${statsWhereClause !== '1=1' ? `WHERE ${statsWhereClause}` : ''}
+    `;
+    const statsResult = await db.get(statsQuery, statsParams);
+    const stats = {
+      totalScans: statsResult?.totalScans || 0,
+      grantedScans: statsResult?.grantedScans || 0,
+      deniedScans: statsResult?.deniedScans || 0
+    };
 
     // Get paginated logs
     let logsQuery: string;
@@ -222,7 +250,12 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
       success: true,
       data: {
         data: logs,
-        total
+        total,
+        stats: {
+          totalScans: stats.totalScans,
+          grantedScans: stats.grantedScans,
+          deniedScans: stats.deniedScans
+        }
       }
     });
 

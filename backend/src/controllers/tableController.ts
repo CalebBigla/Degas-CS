@@ -2458,8 +2458,19 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
 
     // If no config, return default (show all fields)
     if (!config) {
-      const schema = JSON.parse(table.schema);
-      const allFields = schema.map((col: any) => col.name);
+      let allFields: string[] = [];
+      
+      // Try to get fields from schema
+      if (table.schema) {
+        try {
+          const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
+          allFields = schema.map((col: any) => col.name || col);
+        } catch (parseError) {
+          logger.warn(`Failed to parse schema for table ${tableId}:`, parseError);
+          allFields = [];
+        }
+      }
+      
       config = {
         visibleFields: allFields,
         showPhoto: true,

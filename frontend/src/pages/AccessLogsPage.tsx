@@ -24,7 +24,7 @@ export function AccessLogsPage() {
   const limit = 20;
 
   // Fetch access logs
-  const { data: logsData, isLoading } = useQuery<{ data: AccessLog[]; total: number }>(
+  const { data: logsData, isLoading } = useQuery<{ data: AccessLog[]; total: number; stats: { totalScans: number; grantedScans: number; deniedScans: number } }>(
     ['accessLogs', page, searchTerm, statusFilter],
     async () => {
       const params = new URLSearchParams({
@@ -45,7 +45,57 @@ export function AccessLogsPage() {
 
   const logs = logsData?.data || [];
   const total = logsData?.total || 0;
+  const stats = logsData?.stats || { totalScans: 0, grantedScans: 0, deniedScans: 0 };
   const totalPages = Math.ceil(total / limit);
+
+  const handleExportLogs = async () => {
+    try {
+      // Fetch all logs without pagination for export
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '10000', // Get up to 10k records for export
+      });
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      
+      const response = await api.get(`/analytics/access-logs?${params}`);
+      const allLogs = response.data.data?.data || [];
+
+      // Create CSV content
+      const headers = ['User Name', 'User ID', 'Table', 'Status', 'Scan Timestamp', 'Scan Location', 'QR ID'];
+      const rows = allLogs.map((log: AccessLog) => [
+        log.userName || 'Unknown',
+        log.userId?.substring(0, 8) || 'N/A',
+        log.tableName || 'N/A',
+        log.status === 'granted' ? 'ACCESS GRANTED' : 'ACCESS DENIED',
+        new Date(log.timestamp).toLocaleString(),
+        log.scanLocation || 'N/A',
+        log.qrId?.substring(0, 12) || 'N/A'
+      ]);
+
+      // Create CSV blob
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `access-logs-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export logs. Please try again.');
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     if (status === 'granted') {
@@ -88,7 +138,10 @@ export function AccessLogsPage() {
           <h1 className="text-3xl font-bold text-charcoal">Access Logs</h1>
           <p className="text-gray-600 mt-2">Monitor all QR code scan activities and access attempts</p>
         </div>
-        <button className="btn btn-secondary flex items-center space-x-2">
+        <button 
+          onClick={handleExportLogs}
+          className="btn btn-secondary flex items-center space-x-2"
+        >
           <Download className="h-4 w-4" />
           <span>Export Logs</span>
         </button>
@@ -100,7 +153,7 @@ export function AccessLogsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Scans</p>
-              <p className="text-3xl font-bold text-charcoal mt-2">{total}</p>
+              <p className="text-3xl font-bold text-charcoal mt-2">{stats.totalScans}</p>
             </div>
             <div className="p-3 bg-blue-50 rounded-xl">
               <Clock className="h-8 w-8 text-blue-600" />
@@ -113,7 +166,7 @@ export function AccessLogsPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Access Granted</p>
               <p className="text-3xl font-bold text-emerald mt-2">
-                {logs.filter(log => log.status === 'granted').length}
+                {stats.grantedScans}
               </p>
             </div>
             <div className="p-3 bg-emerald/10 rounded-xl">
@@ -127,7 +180,7 @@ export function AccessLogsPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Access Denied</p>
               <p className="text-3xl font-bold text-crimson mt-2">
-                {logs.filter(log => log.status === 'denied').length}
+                {stats.deniedScans}
               </p>
             </div>
             <div className="p-3 bg-crimson/10 rounded-xl">
