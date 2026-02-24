@@ -2554,9 +2554,15 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
     }
 
     const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
-    // Verify table exists
-    const table = await db.get('SELECT id, schema FROM tables WHERE id = ?', [tableId]);
+    // Verify table exists - use proper parameter placeholder
+    const paramPlaceholder = dbType === 'sqlite' ? '?' : '$1';
+    const table = await db.get(
+      `SELECT id, schema FROM tables WHERE id = ${paramPlaceholder}`, 
+      [tableId]
+    );
+    
     if (!table) {
       logger.error(`Table not found: ${tableId}`);
       return res.status(404).json({
@@ -2590,11 +2596,12 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
 
     logger.info(`💾 Saving config to database:`, config);
 
-    // Update table's id_card_config
-    const result = await db.run(
-      'UPDATE tables SET id_card_config = ?, updated_at = datetime(\'now\') WHERE id = ?',
-      [JSON.stringify(config), tableId]
-    );
+    // Update table's id_card_config - use proper SQL for each database type
+    const updateQuery = dbType === 'sqlite'
+      ? `UPDATE tables SET id_card_config = ?, updated_at = datetime('now') WHERE id = ?`
+      : `UPDATE tables SET id_card_config = $1, updated_at = NOW() WHERE id = $2`;
+    
+    const result = await db.run(updateQuery, [JSON.stringify(config), tableId]);
 
     logger.info(`✅ Updated ID card config for table ${tableId}`, {
       changes: result.changes,
