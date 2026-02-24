@@ -141,7 +141,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
         type: typeof user!.data[fieldName],
         displayName: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, ' $1') // Convert camelCase to Title Case
       }));
-      logger.info('📋 Auto-generated schema from user data:', { fieldCount: schema.length, fieldNames: schema.map(f => f.name) });
+      logger.info('📋 Auto-generated schema from user data:', { fieldCount: schema.length, fieldNames: schema.map((f: any) => f.name) });
     }
 
     const enrichedResult = {
