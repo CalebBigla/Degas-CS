@@ -239,6 +239,20 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     
     const logs = await db.all(logsQuery, [...params, limit, offset]);
 
+    logger.info(`📊 Raw logs fetched from database:`, {
+      count: logs.length,
+      dbType,
+      firstLog: logs[0] ? {
+        id: logs[0].id,
+        userId: logs[0].userId,
+        tableName: logs[0].tableName,
+        status: logs[0].status,
+        timestamp: logs[0].timestamp,
+        hasUserData: !!logs[0].userData,
+        hasTableSchema: !!logs[0].tableSchema
+      } : null
+    });
+
     // Process logs to extract userName from userData using schema
     const processedLogs = logs.map((log: any) => {
       let userName = 'Unknown';
