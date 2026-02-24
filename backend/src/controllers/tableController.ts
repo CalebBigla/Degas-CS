@@ -2439,9 +2439,16 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
     logger.info('📋 Getting ID card config for table', { tableId });
 
     const db = getDatabase();
-    const table = await db.get('SELECT id, name, schema, id_card_config FROM tables WHERE id = ?', [tableId]);
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
+    // Use proper parameter placeholder for PostgreSQL
+    const paramPlaceholder = dbType === 'sqlite' ? '?' : '$1';
+    const table = await db.get(
+      `SELECT id, name, schema, id_card_config FROM tables WHERE id = ${paramPlaceholder}`, 
+      [tableId]
+    );
 
-    logger.info('📋 Table query result', { found: !!table, tableId });
+    logger.info('📋 Table query result', { found: !!table, tableId, dbType });
 
     if (!table) {
       logger.warn('❌ Table not found', { tableId });

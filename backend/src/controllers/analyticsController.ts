@@ -124,6 +124,7 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const search = req.query.search as string || '';
     const status = req.query.status as string || 'all';
+    const tableId = req.query.tableId as string || '';
     const offset = (page - 1) * limit;
 
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
@@ -139,6 +140,16 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
         whereClause += ` AND ((du.data::jsonb->>'fullName') LIKE $${params.length + 1} OR t.name LIKE $${params.length + 2})`;
       }
       params.push(`%${search}%`, `%${search}%`);
+    }
+
+    if (tableId) {
+      if (dbType === 'sqlite') {
+        whereClause += ` AND al.table_id = ?`;
+        params.push(tableId);
+      } else {
+        whereClause += ` AND al.table_id = $${params.length + 1}`;
+        params.push(tableId);
+      }
     }
 
     if (status !== 'all') {
@@ -166,6 +177,16 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     let statsWhereClause = '1=1';
     const statsParams: any[] = [];
     
+    if (tableId) {
+      if (dbType === 'sqlite') {
+        whereClause += ` AND al.table_id = ?`;
+        params.push(tableId);
+      } else {
+        whereClause += ` AND al.table_id = $${params.length + 1}`;
+        params.push(tableId);
+      }
+    }
+
     if (status !== 'all') {
       if (dbType === 'sqlite') {
         statsWhereClause = `al.access_granted = ?`;

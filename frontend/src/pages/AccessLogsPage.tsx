@@ -21,14 +21,23 @@ interface AccessLog {
 export function AccessLogsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'granted' | 'denied'>('all');
+  const [tableFilter, setTableFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const limit = 20;
 
+  // Fetch tables for filter dropdown
+  const { data: tablesData } = useQuery('tables', async () => {
+    const response = await api.get('/tables');
+    return response.data.data;
+  });
+
+  const tables = tablesData || [];
+
   // Fetch access logs with auto-refresh
   const { data: logsData, isLoading, refetch } = useQuery<{ data: AccessLog[]; total: number; stats: { totalScans: number; grantedScans: number; deniedScans: number } }>(
-    ['accessLogs', page, searchTerm, statusFilter],
+    ['accessLogs', page, searchTerm, statusFilter, tableFilter],
     async () => {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -37,6 +46,7 @@ export function AccessLogsPage() {
       
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (tableFilter !== 'all') params.append('tableId', tableFilter);
       
       const response = await api.get(`/analytics/access-logs?${params}`);
       return response.data.data;
@@ -223,6 +233,23 @@ export function AccessLogsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input pl-10"
             />
+          </div>
+
+          {/* Table/Group Filter */}
+          <div className="flex items-center space-x-2">
+            <TableIcon className="h-5 w-5 text-gray-400" />
+            <select
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              className="input w-48"
+            >
+              <option value="all">All Tables</option>
+              {tables.map((table: any) => (
+                <option key={table.id} value={table.id}>
+                  {table.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Status Filter */}
