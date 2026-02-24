@@ -2436,10 +2436,15 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId } = req.params;
 
+    logger.info('📋 Getting ID card config for table', { tableId });
+
     const db = getDatabase();
     const table = await db.get('SELECT id, name, schema, id_card_config FROM tables WHERE id = ?', [tableId]);
 
+    logger.info('📋 Table query result', { found: !!table, tableId });
+
     if (!table) {
+      logger.warn('❌ Table not found', { tableId });
       return res.status(404).json({
         success: false,
         error: 'Table not found'
@@ -2451,6 +2456,7 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
     if (table.id_card_config) {
       try {
         config = JSON.parse(table.id_card_config);
+        logger.info('✅ Parsed existing config');
       } catch (error) {
         logger.warn(`Failed to parse id_card_config for table ${tableId}:`, error);
       }
@@ -2458,6 +2464,7 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
 
     // If no config, return default (show all fields)
     if (!config) {
+      logger.info('📋 No config found, creating default');
       let allFields: string[] = [];
       
       // Try to get fields from schema
@@ -2465,6 +2472,7 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
         try {
           const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
           allFields = schema.map((col: any) => col.name || col);
+          logger.info('✅ Extracted fields from schema', { fieldCount: allFields.length });
         } catch (parseError) {
           logger.warn(`Failed to parse schema for table ${tableId}:`, parseError);
           allFields = [];
@@ -2481,12 +2489,17 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
       };
     }
 
+    logger.info('✅ Returning config', { hasConfig: !!config });
     res.json({
       success: true,
       data: config
     });
-  } catch (error) {
-    logger.error('Get table ID card config error:', error);
+  } catch (error: any) {
+    logger.error('❌ Get table ID card config error:', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      tableId: req.params.tableId
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to get table ID card configuration'
