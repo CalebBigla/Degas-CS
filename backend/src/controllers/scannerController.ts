@@ -110,74 +110,67 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       logger.error('❌ Failed to log access:', dbError);
     }
 
-    // Build result with only actual table fields - no hardcoded ones
-    // Intelligently extract name from various possible field names
-    const getUserName = (data: any): string => {
-      if (!data) return 'Unknown User';
-      
-      // Try common name field variations (case-sensitive exact match first)
-      const nameFieldCandidates = [
-        'Name', 'name', 'fullName', 'Full Name', 'full_name', 'full-name',
-        'firstName', 'first_name', 'first-name', 'lastName', 'last_name', 'last-name',
-        'staffName', 'staff_name', 'employeeName', 'employee_name',
-        'userName', 'user_name', 'displayName', 'display_name'
-      ];
-      
-      for (const fieldName of nameFieldCandidates) {
-        if (data[fieldName] && typeof data[fieldName] === 'string' && data[fieldName].trim()) {
-          return data[fieldName].trim();
-        }
+    // Build result using SCHEMA as source of truth - no hardcoded fields
+    // Use first schema field as name field (aligned with ID card customization)
+    const getNameFromSchema = (schema: any, data: any): string => {
+      if (!schema?.fields || schema.fields.length === 0 || !data) {
+        return 'Unknown User';
       }
       
-      // If no name field found, use first non-empty string value
-      for (const [key, value] of Object.entries(data)) {
-        if (typeof value === 'string' && value.trim() && key.toLowerCase() !== 'photo' && key.toLowerCase() !== 'image') {
-          return value.trim();
-        }
+      // First field in schema is the name field
+      const nameField = schema.fields[0]?.name;
+      if (nameField && data[nameField]) {
+        const nameValue = data[nameField];
+        return typeof nameValue === 'string' ? nameValue.trim() : String(nameValue);
       }
       
       return 'Unknown User';
     };
 
-    // Helper to find role/designation field
-    const getRole = (data: any): string => {
-      if (!data) return '';
-      const roleCandidates = ['role', 'designation', 'position', 'title', 'job_title', 'jobTitle', 'Job Title'];
-      for (const field of roleCandidates) {
-        if (data[field] && typeof data[field] === 'string') {
-          return data[field].trim();
-        }
-      }
-      return '';
-    };
-
-    // Helper to find department field
-    const getDepartment = (data: any): string => {
-      if (!data) return '';
-      const deptCandidates = ['department', 'Department', 'dept', 'Dept', 'team', 'Team', 'division', 'Division'];
-      for (const field of deptCandidates) {
-        if (data[field] && typeof data[field] === 'string') {
-          return data[field].trim();
-        }
-      }
-      return '';
-    };
-
-    const result: ScanResult = {
-      success: true,
-      user: {
+    // Build user object from schema - only include fields defined in schema
+    const buildUserFromSchema = (schema: any, data: any): any => {
+      const userObj: any = {
         id: user!.id,
-        employeeId: '', // Will be filled from actual data if exists
-        fullName: getUserName(user!.data),
-        email: user!.data?.email || user!.data?.Email,
-        role: getRole(user!.data),
-        department: getDepartment(user!.data),
         photoUrl: user!.photoUrl,
         status: 'active',
         qrHash: qrCode!.id,
         createdAt: new Date(),
         updatedAt: new Date()
-      },
+      };
+
+      if (!schema?.fields || schema.fields.length === 0) {
+        // Fallback: just return all data if no schema
+        userObj.fullName = 'Unknown User';
+        return userObj;
+      }
+
+      // Use first field as fullName
+      userObj.fullName = getNameFromSchema(schema, data);
+
+      // Add all other schema fields to user object
+      schema.fields.forEach((field: any, index: number) => {
+        if (index > 0) { // Skip first field (already set as fullName)
+          userObj[field.name] = data?.[field.name] || '';
+        }
+      });
+
+      logger.info('📋 Built user object from schema:', {
+        schemaFieldCount: schema.fields.length,
+        userFieldCount: Object.keys(userObj).length,
+        nameField: schema.fields[0]?.name,
+        nameValue: userObj.fullName
+      });
+
+      return userObj;
+    };
+
+
+    // Build dynamic user object from schema
+    const userObj = buildUserFromSchema(tableSchema, user!.data);
+
+    const result: ScanResult = {
+      success: true,
+      user: userObj,
       accessGranted,
       message: 'Access granted'
     };
@@ -206,7 +199,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       fieldValues: user!.data || {}
     };
 
-    logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${user!.data?.fullName || 'Unknown'}`);
+    logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${userObj.fullName}`);
     logger.info('📍 CHECKPOINT: Sending successful verification response');
 
     return res.status(200).json({
