@@ -153,14 +153,14 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
 
     // Get total count (with filters applied)
     const countQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(*) as ${dbType === 'sqlite' ? 'total' : '"total"'}
       FROM access_logs al
       LEFT JOIN dynamic_users du ON al.user_id = du.id
       LEFT JOIN tables t ON al.table_id = t.id
       WHERE ${whereClause}
     `;
     const countResult = await db.get(countQuery, params);
-    const total = countResult?.total || 0;
+    const total = parseInt(countResult?.total || '0');
 
     // Get overall stats (total scans, granted, denied - NO filters except status if explicitly chosen)
     let statsWhereClause = '1=1';
@@ -178,17 +178,26 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
 
     const statsQuery = `
       SELECT 
-        COUNT(*) as totalScans,
-        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '1' : 'true'} THEN 1 ELSE 0 END) as grantedScans,
-        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '0' : 'false'} THEN 1 ELSE 0 END) as deniedScans
+        COUNT(*) as "totalScans",
+        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '1' : 'true'} THEN 1 ELSE 0 END) as "grantedScans",
+        SUM(CASE WHEN al.access_granted = ${dbType === 'sqlite' ? '0' : 'false'} THEN 1 ELSE 0 END) as "deniedScans"
       FROM access_logs al
       ${statsWhereClause !== '1=1' ? `WHERE ${statsWhereClause}` : ''}
     `;
     const statsResult = await db.get(statsQuery, statsParams);
+    
+    logger.info('📊 Stats query result:', {
+      dbType,
+      statsResult,
+      totalScans: statsResult?.totalScans,
+      grantedScans: statsResult?.grantedScans,
+      deniedScans: statsResult?.deniedScans
+    });
+    
     const stats = {
-      totalScans: statsResult?.totalScans || 0,
-      grantedScans: statsResult?.grantedScans || 0,
-      deniedScans: statsResult?.deniedScans || 0
+      totalScans: parseInt(statsResult?.totalScans || statsResult?.totalscans || '0'),
+      grantedScans: parseInt(statsResult?.grantedScans || statsResult?.grantedscans || '0'),
+      deniedScans: parseInt(statsResult?.deniedScans || statsResult?.deniedscans || '0')
     };
 
     // Get paginated logs
