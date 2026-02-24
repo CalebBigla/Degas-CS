@@ -76,7 +76,7 @@ export class PDFService {
     }
   }
 
-  static async generateIDCard(user: any, customSettings?: any): Promise<Buffer> {
+  static async generateIDCard(user: any, customSettings?: any, tableName?: string): Promise<Buffer> {
     try {
       // Validate user data
       if (!user) {
@@ -156,13 +156,13 @@ export class PDFService {
         color: charcoal,
       });
 
-      // Company name
-      page.drawText('DEGAS CS', {
-        x: 20,
+      // Company name (use table name if provided, positioned at top right)
+      page.drawText(tableName || 'DEGAS CS', {
+        x: 250,
         y: 195,
-        size: 16,
+        size: 14,
         font: helveticaBoldFont,
-        color: white,
+        color: white
       });
 
       // Access Control badge

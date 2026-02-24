@@ -1479,7 +1479,7 @@ export const generateTableIDCards = async (req: AuthRequest, res: Response) => {
               photoUrl: user.photo_url,
               qrCode: qrResult.qrData,
               issuedDate: new Date(user.created_at)
-            });
+            }, undefined, table.name);
 
             logger.info('✅ PDF generated successfully', { 
               userId: user.id, 
@@ -2470,13 +2470,28 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
       // Try to get fields from schema
       if (table.schema) {
         try {
-          const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
-          allFields = schema.map((col: any) => col.name || col);
-          logger.info('✅ Extracted fields from schema', { fieldCount: allFields.length });
+          let schema: any = table.schema;
+          
+          // If schema is a string, parse it
+          if (typeof schema === 'string') {
+            schema = JSON.parse(schema);
+            logger.info('✅ Parsed schema from string');
+          }
+          
+          // Schema should now be an array
+          if (Array.isArray(schema)) {
+            allFields = schema.map((col: any) => col.name || col);
+            logger.info('✅ Extracted fields from schema array', { fieldCount: allFields.length, fields: allFields });
+          } else {
+            logger.warn('⚠️ Schema is not an array after parsing', { schemaType: typeof schema });
+            allFields = [];
+          }
         } catch (parseError) {
-          logger.warn(`Failed to parse schema for table ${tableId}:`, parseError);
+          logger.error(`❌ Failed to parse schema for table ${tableId}:`, parseError);
           allFields = [];
         }
+      } else {
+        logger.warn('❌ Table schema is null or undefined');
       }
       
       config = {
@@ -2489,7 +2504,7 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
       };
     }
 
-    logger.info('✅ Returning config', { hasConfig: !!config });
+    logger.info('✅ Returning config', { configFields: config?.visibleFields?.length || 0 });
     res.json({
       success: true,
       data: config
@@ -2502,7 +2517,8 @@ export const getTableIDCardConfig = async (req: AuthRequest, res: Response) => {
     });
     res.status(500).json({
       success: false,
-      error: 'Failed to get table ID card configuration'
+      error: 'Failed to get table ID card configuration',
+      details: error?.message
     });
   }
 };
