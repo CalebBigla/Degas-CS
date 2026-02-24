@@ -55,13 +55,17 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       // Log failed scan attempt
       try {
         const db = getDatabase();
+        const dbType = process.env.DATABASE_TYPE || 'sqlite';
+        const timestampFunc = dbType === 'sqlite' ? "datetime('now', 'utc')" : 'NOW()';
+        
         await db.run(
           `INSERT INTO access_logs (scanner_location, access_granted, scanned_by, scan_timestamp, ip_address, user_agent, denial_reason)
-           VALUES (?, ?, ?, datetime('now', 'utc'), ?, ?, ?)`,
+           VALUES (?, ?, ?, ${timestampFunc}, ?, ?, ?)`,
           [scannerLocation, 0, scannedBy, req.ip, req.get('User-Agent'), verification.error || 'Invalid QR code']
         );
+        logger.info('✅ Failed access logged');
       } catch (dbError) {
-        logger.error('Failed to log access attempt:', dbError);
+        logger.error('❌ Failed to log access attempt:', dbError);
       }
 
       const result: ScanResult = {
@@ -92,6 +96,9 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     // Log successful scan
     try {
       const db = getDatabase();
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
+      const timestampFunc = dbType === 'sqlite' ? "datetime('now', 'utc')" : 'NOW()';
+      
       logger.info('📝 Recording access log:', {
         userId: user!.id,
         tableId: table!.id,
@@ -102,7 +109,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       });
       await db.run(
         `INSERT INTO access_logs (user_id, table_id, qr_code_id, scanner_location, access_granted, scanned_by, scan_timestamp, ip_address, user_agent)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'utc'), ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ${timestampFunc}, ?, ?)`,
         [user!.id, table!.id, qrCode!.id, scannerLocation, 1, scannedBy, req.ip, req.get('User-Agent')]
       );
       logger.info('✅ Access log recorded successfully');
