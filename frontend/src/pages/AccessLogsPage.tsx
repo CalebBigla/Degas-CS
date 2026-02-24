@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, Download, CheckCircle, XCircle, Clock, User, TableIcon, Eye, X } from 'lucide-react';
+import { Search, Filter, Download, CheckCircle, XCircle, Clock, User, TableIcon, Eye, X, RefreshCw } from 'lucide-react';
 import { useQuery } from 'react-query';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import api from '../lib/api';
@@ -26,8 +26,8 @@ export function AccessLogsPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const limit = 20;
 
-  // Fetch access logs
-  const { data: logsData, isLoading } = useQuery<{ data: AccessLog[]; total: number; stats: { totalScans: number; grantedScans: number; deniedScans: number } }>(
+  // Fetch access logs with auto-refresh
+  const { data: logsData, isLoading, refetch } = useQuery<{ data: AccessLog[]; total: number; stats: { totalScans: number; grantedScans: number; deniedScans: number } }>(
     ['accessLogs', page, searchTerm, statusFilter],
     async () => {
       const params = new URLSearchParams({
@@ -43,6 +43,7 @@ export function AccessLogsPage() {
     },
     {
       keepPreviousData: true,
+      refetchInterval: 5000, // Auto-refresh every 5 seconds for live feed
     }
   );
 
@@ -138,16 +139,32 @@ export function AccessLogsPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-charcoal">Access Logs</h1>
-          <p className="text-gray-600 mt-2">Monitor all QR code scan activities and access attempts</p>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-3xl font-bold text-charcoal">Access Logs</h1>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald/10 text-emerald">
+              <span className="w-2 h-2 bg-emerald rounded-full mr-1.5 animate-pulse"></span>
+              Live
+            </span>
+          </div>
+          <p className="text-gray-600 mt-2">Monitor all QR code scan activities and access attempts • Auto-refreshes every 5 seconds</p>
         </div>
-        <button 
-          onClick={handleExportLogs}
-          className="btn btn-secondary flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export Logs</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => refetch()}
+            className="btn btn-ghost flex items-center space-x-2"
+            title="Refresh logs"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          <button 
+            onClick={handleExportLogs}
+            className="btn btn-secondary flex items-center space-x-2"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export Logs</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
