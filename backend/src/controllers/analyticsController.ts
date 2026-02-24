@@ -144,10 +144,11 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     if (status !== 'all') {
       if (dbType === 'sqlite') {
         whereClause += ` AND al.access_granted = ?`;
+        params.push(status === 'granted' ? 1 : 0);
       } else {
         whereClause += ` AND al.access_granted = $${params.length + 1}`;
+        params.push(status === 'granted'); // PostgreSQL uses boolean
       }
-      params.push(status === 'granted' ? 1 : 0);
     }
 
     // Get total count (with filters applied)
@@ -168,10 +169,11 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     if (status !== 'all') {
       if (dbType === 'sqlite') {
         statsWhereClause = `al.access_granted = ?`;
+        statsParams.push(status === 'granted' ? 1 : 0);
       } else {
         statsWhereClause = `al.access_granted = $1`;
+        statsParams.push(status === 'granted');
       }
-      statsParams.push(status === 'granted' ? 1 : 0);
     }
 
     const statsQuery = `
