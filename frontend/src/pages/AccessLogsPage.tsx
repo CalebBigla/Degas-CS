@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, Download, CheckCircle, XCircle, Clock, User, Table as TableIcon } from 'lucide-react';
+import { Search, Filter, Download, CheckCircle, XCircle, Clock, User, TableIcon, Eye, X } from 'lucide-react';
 import { useQuery } from 'react-query';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import api from '../lib/api';
@@ -9,6 +9,7 @@ interface AccessLog {
   userId: string;
   userName: string;
   userPhoto?: string;
+  userData?: string; // JSON string of user data
   tableId: string;
   tableName: string;
   status: 'granted' | 'denied';
@@ -21,6 +22,8 @@ export function AccessLogsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'granted' | 'denied'>('all');
   const [page, setPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const limit = 20;
 
   // Fetch access logs
@@ -232,6 +235,7 @@ export function AccessLogsPage() {
                 <th>Status</th>
                 <th>Timestamp</th>
                 <th>Scan ID</th>
+                <th style={{textAlign: 'center'}}>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -277,6 +281,18 @@ export function AccessLogsPage() {
                       <code className="px-2 py-1 bg-gray-100 rounded text-xs font-mono text-gray-700">
                         {log.qrId?.substring(0, 12) || (typeof log.id === 'string' ? log.id.substring(0, 12) : String(log.id).substring(0, 12))}
                       </code>
+                    </td>
+                    <td style={{textAlign: 'center'}}>
+                      <button
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setShowDetailModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 transition-colors"
+                        title="View user details"
+                      >
+                        <Eye className="h-5 w-5" />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -338,6 +354,112 @@ export function AccessLogsPage() {
           </div>
         )}
       </div>
+
+      {/* User Details Modal */}
+      {showDetailModal && selectedLog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                {selectedLog.userPhoto ? (
+                  <img
+                    src={selectedLog.userPhoto}
+                    alt={selectedLog.userName}
+                    className="w-16 h-16 rounded-full object-cover ring-4 ring-white"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center ring-4 ring-white">
+                    <User className="h-8 w-8 text-white" />
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedLog.userName}</h2>
+                  <p className="text-blue-100">User ID: {selectedLog.userId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Scan Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-charcoal mb-4">Scan Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Table/Group</p>
+                    <p className="font-semibold text-gray-900">{selectedLog.tableName}</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <div>{getStatusBadge(selectedLog.status)}</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Scan Time</p>
+                    <p className="font-semibold text-gray-900">
+                      {new Date(selectedLog.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Scan Location</p>
+                    <p className="font-semibold text-gray-900">{selectedLog.scanLocation || 'Not specified'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Data Fields */}
+              {selectedLog.userData && (
+                <div>
+                  <h3 className="text-lg font-semibold text-charcoal mb-4">User Information</h3>
+                  <div className="space-y-3">
+                    {Object.entries(
+                      typeof selectedLog.userData === 'string' 
+                        ? JSON.parse(selectedLog.userData) 
+                        : selectedLog.userData
+                    ).map(([key, value]) => {
+                      // Skip empty or empty object values
+                      if (value === null || value === undefined || value === '' || (typeof value === 'object' && Object.keys(value).length === 0)) {
+                        return null;
+                      }
+                      return (
+                        <div key={key} className="flex justify-between items-start pb-3 border-b border-gray-200">
+                          <span className="font-medium text-gray-700 capitalize">{key}:</span>
+                          <span className="text-gray-600 text-right break-words">{String(value)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* QR Code Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-charcoal mb-4">QR Code Information</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">QR Code ID</p>
+                  <code className="text-sm font-mono text-gray-900 break-all">{selectedLog.qrId}</code>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="btn btn-primary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

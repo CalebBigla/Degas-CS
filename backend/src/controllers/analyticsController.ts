@@ -196,7 +196,8 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
         SELECT 
           al.id,
           al.user_id as userId,
-          json_extract(du.data, '$.fullName') as userName,
+          du.data as userData,
+          t.schema as tableSchema,
           du.photo_url as userPhoto,
           al.table_id as tableId,
           t.name as tableName,
@@ -216,7 +217,8 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
         SELECT 
           al.id,
           al.user_id as "userId",
-          COALESCE((du.data::jsonb->>'fullName'), 'Unknown') as "userName",
+          du.data as "userData",
+          t.schema as "tableSchema",
           du.photo_url as "userPhoto",
           al.table_id as "tableId",
           t.name as "tableName",
@@ -235,21 +237,54 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     
     const logs = await db.all(logsQuery, [...params, limit, offset]);
 
-    logger.info(`Access logs fetched: ${logs.length} records, total: ${total}`);
-    if (logs.length > 0) {
+    // Process logs to extract userName from userData using schema
+    const processedLogs = logs.map((log: any) => {
+      let userName = 'Unknown';
+      
+      // Try to extract from schema
+      try {
+        const tableSchema = log.tableSchema ? (typeof log.tableSchema === 'string' ? JSON.parse(log.tableSchema) : log.tableSchema) : null;
+        const userData = log.userData ? (typeof log.userData === 'string' ? JSON.parse(log.userData) : log.userData) : null;
+        
+        if (tableSchema?.length > 0 && userData) {
+          const firstFieldName = tableSchema[0]?.name;
+          if (firstFieldName && userData[firstFieldName]) {
+            userName = String(userData[firstFieldName]).trim();
+          }
+        }
+      } catch (parseError) {
+        logger.warn('Failed to extract userName from userData:', parseError);
+      }
+
+      return {
+        id: log.id,
+        userId: log.userId,
+        userName,
+        userPhoto: log.userPhoto,
+        userData: log.userData, // Keep full data for detail view
+        tableId: log.tableId,
+        tableName: log.tableName,
+        status: log.status,
+        timestamp: log.timestamp,
+        scanLocation: log.scanLocation,
+        qrId: log.qrId
+      };
+    });
+
+    logger.info(`Access logs fetched: ${processedLogs.length} records, total: ${total}`);
+    if (processedLogs.length > 0) {
       logger.info('📋 Sample access log entry:', {
-        firstLog: logs[0],
-        hasUserName: !!logs[0]?.userName,
-        hasUserPhoto: !!logs[0]?.userPhoto,
-        hasTableName: !!logs[0]?.tableName,
-        userId: logs[0]?.userId
+        userName: processedLogs[0]?.userName,
+        tableName: processedLogs[0]?.tableName,
+        status: processedLogs[0]?.status,
+        userId: processedLogs[0]?.userId
       });
     }
 
     res.json({
       success: true,
       data: {
-        data: logs,
+        data: processedLogs,
         total,
         stats: {
           totalScans: stats.totalScans,
