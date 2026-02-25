@@ -2719,19 +2719,18 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
 
     // Generate ID card PDF
     logger.info('📄 Generating ID card PDF for email');
-    const pdfBuffer = await PDFService.generateIDCard({
-      user: {
+    const pdfBuffer = await PDFService.generateIDCard(
+      {
         id: user.id,
         uuid: user.uuid,
         data: userData,
-        photoUrl: user.photo_url
+        photoUrl: user.photo_url,
+        tableId: table.id,
+        table_id: table.id
       },
-      table: {
-        id: table.id,
-        name: table.name,
-        schema
-      }
-    });
+      undefined,
+      table.name
+    );
 
     // Send email
     logger.info('📧 Sending email with PDF attachment');
