@@ -2712,7 +2712,7 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
     const userData = typeof user.data === 'string' ? JSON.parse(user.data) : user.data;
     const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
     
-    // Get table's ID card configuration
+    // Get table's ID card configuration (same as generateCustomIDCard)
     let idCardConfig;
     if (table.id_card_config) {
       try {
@@ -2722,44 +2722,76 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Build visible fields list (use table config or default to all fields)
-    let visibleFields: string[];
-    if (idCardConfig?.visibleFields && Array.isArray(idCardConfig.visibleFields)) {
-      visibleFields = idCardConfig.visibleFields;
+    // Build options (same as generateCustomIDCard)
+    let options;
+    if (idCardConfig) {
+      options = {
+        visibleFields: idCardConfig.visibleFields || [],
+        showPhoto: idCardConfig.showPhoto !== undefined ? idCardConfig.showPhoto : true,
+        layout: idCardConfig.layout || 'standard',
+        theme: idCardConfig.theme || 'light'
+      };
     } else {
-      // Default: use all schema fields
-      visibleFields = schema.map((col: any) => col.name);
+      // Default: show all fields
+      options = {
+        visibleFields: schema.map((col: any) => col.name),
+        showPhoto: true,
+        layout: 'standard',
+        theme: 'light'
+      };
     }
 
-    // Get user name from first visible field (same logic as generateCustomIDCard)
+    // Generate QR code (same as generateCustomIDCard)
+    const qrResult = await QRService.generateSecureQR(user.id, tableId);
+
+    // Build card data object (same as generateCustomIDCard)
+    const cardData = {
+      id: user.id,
+      uuid: user.uuid,
+      tableId: tableId,
+      name: '',
+      role: '',
+      department: '',
+      email: '',
+      tableName: table.name,
+      photoUrl: null as string | null,
+      qrCode: qrResult.qrData,
+      issuedDate: new Date(user.created_at),
+      customFields: {} as Record<string, any>,
+      layout: options.layout || 'standard',
+      theme: options.theme || 'light'
+    };
+
+    // Map fields (same logic as generateCustomIDCard)
     const systemFields = ['photo', 'photoUrl', 'photo_url', 'id', 'uuid', 'tableId', 'table_id', 'qrCode', 'qr_code', 'createdAt', 'created_at', 'updatedAt', 'updated_at'];
-    const firstDataField = visibleFields.find(fieldName => 
-      !systemFields.includes(fieldName) && 
-      !fieldName.toLowerCase().includes('photo') && 
-      !fieldName.toLowerCase().includes('id') &&
-      userData[fieldName]
-    );
+    let isFirstField = true;
     
-    const userName = firstDataField && userData[firstDataField] 
-      ? String(userData[firstDataField]) 
-      : 'User';
+    if (Array.isArray(options.visibleFields)) {
+      options.visibleFields.forEach((fieldName: string) => {
+        const fieldValue = userData[fieldName];
+        
+        if (systemFields.includes(fieldName) || fieldName.toLowerCase().includes('photo') || fieldName.toLowerCase().includes('id')) {
+          return;
+        }
+        
+        if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '' && typeof fieldValue !== 'object') {
+          if (isFirstField) {
+            cardData.name = String(fieldValue);
+            isFirstField = false;
+          }
+          (cardData.customFields as Record<string, any>)[fieldName] = fieldValue;
+        }
+      });
+      
+      cardData.photoUrl = options.showPhoto ? user.photo_url : null;
+    }
 
-    logger.info('📧 Email user name resolved:', { userName, firstDataField, visibleFields });
+    const userName = cardData.name || 'User';
+    logger.info('📧 Email card data built:', { userName, customFieldsCount: Object.keys(cardData.customFields).length });
 
-    // Generate ID card PDF
+    // Generate ID card PDF using cardData (same as generateCustomIDCard)
     logger.info('📄 Generating ID card PDF for email');
-    const pdfBuffer = await PDFService.generateIDCard(
-      {
-        id: user.id,
-        uuid: user.uuid,
-        data: userData,
-        photoUrl: user.photo_url,
-        tableId: table.id,
-        table_id: table.id
-      },
-      undefined,
-      table.name
-    );
+    const pdfBuffer = await PDFService.generateIDCard(cardData, undefined, table.name);
 
     // Send email
     logger.info('📧 Sending email with PDF attachment');
