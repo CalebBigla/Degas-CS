@@ -35,6 +35,7 @@ export function TableDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
@@ -52,10 +53,12 @@ export function TableDetailPage() {
   );
 
   // Fetch table users
-  const { data: usersData, isLoading: usersLoading } = useQuery<{ data: TableUser[]; total: number }>(
-    ['tableUsers', tableId, searchTerm],
+  const { data: usersData, isLoading: usersLoading } = useQuery<{ data: TableUser[]; total: number; totalPages: number }>(
+    ['tableUsers', tableId, searchTerm, page],
     async () => {
       const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '20');
       if (searchTerm) params.append('search', searchTerm);
       
       const response = await api.get(`/tables/${tableId}/users?${params}`);
@@ -439,6 +442,34 @@ export function TableDetailPage() {
             >
               Add your first user
             </button>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {usersData && usersData.totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Showing {((page - 1) * 20) + 1} to {Math.min(page * 20, usersData.total)} of {usersData.total} users
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {page} of {usersData.totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(usersData.totalPages, p + 1))}
+                disabled={page === usersData.totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
