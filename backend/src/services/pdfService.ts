@@ -296,8 +296,9 @@ export class PDFService {
         });
       }
 
-      // User information - using safeUser data
-      page.drawText(safeUser.fullName.toUpperCase(), {
+      // User information - use customFields if available (dynamic), otherwise fallback to safeUser
+      const displayName = user.name || safeUser.fullName;
+      page.drawText(displayName.toUpperCase(), {
         x: 100,
         y: 145,
         size: 14,
@@ -305,30 +306,63 @@ export class PDFService {
         color: charcoal,
       });
 
-      page.drawText(`ID: ${safeUser.employeeId}`, {
-        x: 100,
-        y: 130,
-        size: 10,
-        font: helveticaFont,
-        color: charcoal,
-      });
-
-      page.drawText(`Role: ${safeUser.role}`, {
-        x: 100,
-        y: 115,
-        size: 10,
-        font: helveticaFont,
-        color: charcoal,
-      });
-
-      if (safeUser.department) {
-        page.drawText(`Dept: ${safeUser.department}`, {
+      // Display custom fields dynamically (skip the first field which is the name)
+      let yPosition = 130;
+      const lineHeight = 15;
+      
+      if (user.customFields && Object.keys(user.customFields).length > 0) {
+        // Use customFields from cardData (dynamic approach)
+        let fieldCount = 0;
+        for (const [fieldName, fieldValue] of Object.entries(user.customFields)) {
+          // Skip the first field (it's already shown as the name)
+          if (fieldCount === 0) {
+            fieldCount++;
+            continue;
+          }
+          
+          // Only show first 3 additional fields to avoid overflow
+          if (fieldCount > 3) break;
+          
+          const displayValue = fieldValue ? String(fieldValue) : '';
+          if (displayValue) {
+            page.drawText(`${fieldName}: ${displayValue}`, {
+              x: 100,
+              y: yPosition,
+              size: 10,
+              font: helveticaFont,
+              color: charcoal,
+            });
+            yPosition -= lineHeight;
+            fieldCount++;
+          }
+        }
+      } else {
+        // Fallback to old hardcoded approach
+        page.drawText(`ID: ${safeUser.employeeId}`, {
           x: 100,
-          y: 100,
+          y: 130,
           size: 10,
           font: helveticaFont,
           color: charcoal,
         });
+
+        page.drawText(`Role: ${safeUser.role}`, {
+          x: 100,
+          y: 115,
+          size: 10,
+          font: helveticaFont,
+          color: charcoal,
+        });
+
+        if (safeUser.department) {
+          page.drawText(`Dept: ${safeUser.department}`, {
+            x: 100,
+            y: 100,
+            size: 10,
+            font: helveticaFont,
+            color: charcoal,
+          });
+        }
       }
 
       // Generate QR code with ID (for verification lookup)
