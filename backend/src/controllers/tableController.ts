@@ -2712,26 +2712,11 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
     const userData = typeof user.data === 'string' ? JSON.parse(user.data) : user.data;
     const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
     
-    // Get user name - try multiple strategies
-    let userName = 'User';
-    
-    // Strategy 1: Use first field from schema
-    if (schema[0]?.name && userData[schema[0].name]) {
-      userName = String(userData[schema[0].name]);
-    } 
-    // Strategy 2: Look for common name fields
-    else if (userData.name || userData.fullName || userData.full_name || userData.Name) {
-      userName = String(userData.name || userData.fullName || userData.full_name || userData.Name);
-    }
-    // Strategy 3: Use first non-empty value from userData
-    else {
-      const firstValue = Object.values(userData).find(v => v && String(v).trim());
-      if (firstValue) {
-        userName = String(firstValue);
-      }
-    }
+    // Get user name from first column value (not field name, but actual first value)
+    const firstValue = Object.values(userData)[0];
+    const userName = firstValue ? String(firstValue) : 'User';
 
-    logger.info('📧 Email user name resolved:', { userName, schemaFirstField: schema[0]?.name, userDataKeys: Object.keys(userData) });
+    logger.info('📧 Email user name resolved:', { userName, firstValue, userDataKeys: Object.keys(userData) });
 
     // Generate ID card PDF
     logger.info('📄 Generating ID card PDF for email');
