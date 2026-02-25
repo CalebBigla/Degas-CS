@@ -2652,12 +2652,13 @@ export const updateTableIDCardConfig = async (req: AuthRequest, res: Response) =
 export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId, userId } = req.params;
-    const { email } = req.body;
+    const { email, customMessage } = req.body;
 
     logger.info('📧 Sending ID card email', {
       tableId,
       userId,
-      email
+      email,
+      hasCustomMessage: !!customMessage
     });
 
     // Validate email
@@ -2739,7 +2740,8 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
       userName,
       tableName: table.name,
       pdfPath: '', // Not using file path, using buffer instead
-      pdfBuffer
+      pdfBuffer,
+      customMessage: customMessage || undefined
     });
 
     if (!emailResult.success) {

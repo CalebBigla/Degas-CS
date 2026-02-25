@@ -11,6 +11,7 @@ export interface SendIDCardEmailParams {
   tableName: string;
   pdfPath: string;
   pdfBuffer?: Buffer;
+  customMessage?: string;
 }
 
 export class EmailService {
@@ -30,7 +31,7 @@ export class EmailService {
         throw new Error('Email service not configured. Please set RESEND_API_KEY and EMAIL_FROM environment variables.');
       }
 
-      const { to, userName, tableName, pdfPath, pdfBuffer } = params;
+      const { to, userName, tableName, pdfPath, pdfBuffer, customMessage } = params;
 
       logger.info('📧 Sending ID card email', {
         to,
@@ -55,7 +56,7 @@ export class EmailService {
         from: process.env.EMAIL_FROM!,
         to: [to],
         subject: `Your ID Card - ${tableName}`,
-        html: this.getEmailTemplate(userName, tableName),
+        html: this.getEmailTemplate(userName, tableName, customMessage),
         attachments: [
           {
             filename: `${userName.replace(/\s+/g, '_')}_ID_Card.pdf`,
@@ -98,7 +99,7 @@ export class EmailService {
   /**
    * Get HTML email template
    */
-  private static getEmailTemplate(userName: string, tableName: string): string {
+  private static getEmailTemplate(userName: string, tableName: string, customMessage?: string): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -129,6 +130,12 @@ export class EmailService {
                       <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #333333;">
                         Your ID card for <strong>${tableName}</strong> has been generated and is attached to this email.
                       </p>
+                      
+                      ${customMessage ? `
+                      <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 14px; color: #1e40af; white-space: pre-wrap;">${customMessage}</p>
+                      </div>
+                      ` : ''}
                       
                       <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 4px;">
                         <p style="margin: 0; font-size: 14px; color: #065f46;">

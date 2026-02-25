@@ -38,8 +38,7 @@ export function TableDetailPage() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailUser, setEmailUser] = useState<{ id: string; name: string } | null>(null);
+  const [isBulkEmailModalOpen, setIsBulkEmailModalOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
 
@@ -288,14 +287,23 @@ export function TableDetailPage() {
         </div>
         <div className="flex items-center space-x-3">
           {selectedUserIds.size > 0 && (
-            <button
-              onClick={handleBulkGenerateIDCards}
-              disabled={isBulkGenerating}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="h-4 w-4" />
-              <span>{isBulkGenerating ? 'Generating...' : `Generate ${selectedUserIds.size} ID Cards`}</span>
-            </button>
+            <>
+              <button
+                onClick={handleBulkGenerateIDCards}
+                disabled={isBulkGenerating}
+                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                <span>{isBulkGenerating ? 'Generating...' : `Generate ${selectedUserIds.size} ID Cards`}</span>
+              </button>
+              <button
+                onClick={() => setIsBulkEmailModalOpen(true)}
+                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Mail className="h-4 w-4" />
+                <span>Send {selectedUserIds.size} Email{selectedUserIds.size > 1 ? 's' : ''}</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => setIsCustomizationModalOpen(true)}
@@ -395,21 +403,6 @@ export function TableDetailPage() {
                         <Edit2 className="h-4 w-4" />
                       </button>
                       
-                      {/* Send Email Button */}
-                      <button
-                        onClick={() => {
-                          setEmailUser({
-                            id: user.id,
-                            name: String(user.data[table.schema[0]?.name] || 'User')
-                          });
-                          setIsEmailModalOpen(true);
-                        }}
-                        className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-                        title="Send ID Card via Email"
-                      >
-                        <Mail className="h-4 w-4" />
-                      </button>
-                      
                       {/* Download ID Card Button */}
                       <button
                         onClick={() => handleGenerateIDCard(user.id)}
@@ -469,17 +462,16 @@ export function TableDetailPage() {
       />
 
       {/* Send Email Modal */}
-      {emailUser && (
+      {isBulkEmailModalOpen && (
         <SendEmailModal
-          isOpen={isEmailModalOpen}
+          isOpen={isBulkEmailModalOpen}
           onClose={() => {
-            setIsEmailModalOpen(false);
-            setEmailUser(null);
+            setIsBulkEmailModalOpen(false);
+            setSelectedUserIds(new Set());
           }}
           tableId={tableId!}
           tableName={table.name}
-          userId={emailUser.id}
-          userName={emailUser.name}
+          userIds={Array.from(selectedUserIds)}
         />
       )}
     </div>

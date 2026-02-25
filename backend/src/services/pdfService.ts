@@ -332,7 +332,10 @@ export class PDFService {
       }
 
       // Generate QR code with ID (for verification lookup)
-      const tableId = user.tableId || user.table_id || 'default';
+      const tableId = user.tableId || user.table_id;
+      if (!tableId) {
+        throw new Error('Table ID is required for QR code generation');
+      }
       const { qrImage } = await QRService.generateSecureQR(safeUser.id || safeUser.uuid, tableId);
       
       // Convert base64 QR image to bytes and embed
