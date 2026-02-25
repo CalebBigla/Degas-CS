@@ -2712,11 +2712,39 @@ export const sendIDCardEmail = async (req: AuthRequest, res: Response) => {
     const userData = typeof user.data === 'string' ? JSON.parse(user.data) : user.data;
     const schema = typeof table.schema === 'string' ? JSON.parse(table.schema) : table.schema;
     
-    // Get user name from first column value (not field name, but actual first value)
-    const firstValue = Object.values(userData)[0];
-    const userName = firstValue ? String(firstValue) : 'User';
+    // Get table's ID card configuration
+    let idCardConfig;
+    if (table.id_card_config) {
+      try {
+        idCardConfig = JSON.parse(table.id_card_config);
+      } catch (error) {
+        logger.warn('Failed to parse id_card_config, using defaults');
+      }
+    }
 
-    logger.info('📧 Email user name resolved:', { userName, firstValue, userDataKeys: Object.keys(userData) });
+    // Build visible fields list (use table config or default to all fields)
+    let visibleFields: string[];
+    if (idCardConfig?.visibleFields && Array.isArray(idCardConfig.visibleFields)) {
+      visibleFields = idCardConfig.visibleFields;
+    } else {
+      // Default: use all schema fields
+      visibleFields = schema.map((col: any) => col.name);
+    }
+
+    // Get user name from first visible field (same logic as generateCustomIDCard)
+    const systemFields = ['photo', 'photoUrl', 'photo_url', 'id', 'uuid', 'tableId', 'table_id', 'qrCode', 'qr_code', 'createdAt', 'created_at', 'updatedAt', 'updated_at'];
+    const firstDataField = visibleFields.find(fieldName => 
+      !systemFields.includes(fieldName) && 
+      !fieldName.toLowerCase().includes('photo') && 
+      !fieldName.toLowerCase().includes('id') &&
+      userData[fieldName]
+    );
+    
+    const userName = firstDataField && userData[firstDataField] 
+      ? String(userData[firstDataField]) 
+      : 'User';
+
+    logger.info('📧 Email user name resolved:', { userName, firstDataField, visibleFields });
 
     // Generate ID card PDF
     logger.info('📄 Generating ID card PDF for email');
