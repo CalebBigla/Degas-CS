@@ -35,9 +35,12 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       qrDataPreview: qrData?.substring(0, 100) || 'NO DATA'
     });
 
+    // Filter out empty string - treat it as undefined (scan all tables)
+    const tableFilter = selectedTableId && selectedTableId.trim() !== '' ? selectedTableId : undefined;
+
     // Use the new database verification method with optional table filter
-    logger.info('🎯 [VERIFY_QR] Calling QRService.verifyQRFromDatabase...');
-    const verification = await QRService.verifyQRFromDatabase(qrData, selectedTableId);
+    logger.info('🎯 [VERIFY_QR] Calling QRService.verifyQRFromDatabase...', { tableFilter });
+    const verification = await QRService.verifyQRFromDatabase(qrData, tableFilter);
     
     logger.info('🎯 [VERIFY_QR] Service returned:', {
       valid: verification.valid,
