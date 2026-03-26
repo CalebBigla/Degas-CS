@@ -110,6 +110,16 @@ export function LoginPage() {
               <div>Guard: guard / guard123</div>
             </div>
           </div>
+
+          {/* Registration link */}
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <a href="/register" className="text-emerald hover:text-emerald/80 font-medium">
+                Register here
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>

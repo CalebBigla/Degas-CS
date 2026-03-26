@@ -29,6 +29,8 @@ export function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, external: false },
     { name: 'Tables', href: '/tables', icon: Users, external: false },
+    { name: 'Forms', href: '/forms', icon: FileText, external: false },
+    { name: 'Attendance', href: '/attendance', icon: BarChart3, external: false },
     { name: 'Scanner', href: '/scanner.html', icon: ScanLine, external: true },
     { name: 'Access Logs', href: '/access-logs', icon: FileText, external: false },
     { name: 'Analytics', href: '/analytics', icon: BarChart3, external: false },

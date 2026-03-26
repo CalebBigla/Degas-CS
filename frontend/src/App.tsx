@@ -7,6 +7,10 @@ import { TableDetailPage } from './pages/TableDetailPage';
 import { ScannerPage } from './pages/ScannerPage';
 import { AccessLogsPage } from './pages/AccessLogsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { FormsPage } from './pages/FormsPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { MemberDashboardPage } from './pages/MemberDashboardPage';
+import { AttendanceSessionsPage } from './pages/AttendanceSessionsPage';
 import { Layout } from './components/Layout';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
@@ -25,6 +29,7 @@ function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -36,8 +41,11 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/my-dashboard" element={<MemberDashboardPage />} />
         <Route path="/tables" element={<TablesPage />} />
         <Route path="/tables/:tableId" element={<TableDetailPage />} />
+        <Route path="/forms" element={<FormsPage />} />
+        <Route path="/attendance" element={<AttendanceSessionsPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
         <Route path="/access-logs" element={<AccessLogsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
