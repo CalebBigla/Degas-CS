@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { getDatabase } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
-import { DashboardStats } from '@gatekeeper/shared';
 import logger from '../config/logger';
-import { DashboardService } from '../services/dashboardService';
+import dashboardService from '../services/dashboardService';
 
 // Helper function to check mock mode
 const isMockMode = (): boolean => {
@@ -38,20 +37,20 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     }
 
     // Get real-time metrics from dashboard service
-    const metrics = await DashboardService.getMetrics();
+    const overview = await dashboardService.getAttendanceOverview();
 
-    // Map DashboardMetrics to expected DashboardStats response format
+    // Map to expected DashboardStats response format
     const dashboardStats: any = {
-      totalUsers: metrics.totalUsers,
-      activeUsers: metrics.totalUsers,
-      todayScans: metrics.totalScans,
-      successfulScans: metrics.grantedScans,
-      recentActivity: metrics.recentScans.map(scan => ({
-        id: scan.id,
-        userName: scan.userName,
-        action: scan.status === 'granted' ? 'Access Granted' : 'Access Denied',
-        timestamp: scan.timestamp,
-        status: scan.status
+      totalUsers: overview.totalUsers,
+      activeUsers: overview.totalUsers,
+      todayScans: overview.totalCheckIns,
+      successfulScans: overview.totalCheckIns,
+      recentActivity: overview.recentSessions.map((session: any) => ({
+        id: session.id,
+        userName: session.session_name,
+        action: session.is_active ? 'Active Session' : 'Completed Session',
+        timestamp: session.start_time,
+        status: 'granted' as const
       }))
     };
 

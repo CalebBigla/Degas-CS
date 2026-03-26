@@ -139,6 +139,66 @@ export class ImageService {
     }
   }
 
+  /**
+   * Save base64 encoded image (from camera or data URL)
+   */
+  static async saveBase64Image(base64Data: string): Promise<string> {
+    try {
+      // Extract base64 data (remove data:image/...;base64, prefix)
+      const matches = base64Data.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+      
+      if (!matches || matches.length !== 3) {
+        throw new Error('Invalid base64 image format');
+      }
+
+      const imageBuffer = Buffer.from(matches[2], 'base64');
+      const filename = `${uuidv4()}.webp`;
+
+      // Process image: resize, optimize, and convert to WebP
+      const processedBuffer = await sharp(imageBuffer)
+        .resize(this.MAX_WIDTH, this.MAX_HEIGHT, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .webp({ quality: this.QUALITY })
+        .toBuffer();
+
+      // Upload to Cloudinary if configured
+      if (useCloudinary) {
+        return new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'degas-cs/user-photos',
+              public_id: filename.replace('.webp', ''),
+              format: 'webp',
+              resource_type: 'image'
+            },
+            (error: any, result: any) => {
+              if (error) {
+                logger.error('Cloudinary upload failed:', error);
+                reject(new Error('Failed to upload image to cloud storage'));
+              } else {
+                logger.info('Base64 image uploaded to Cloudinary:', result?.secure_url);
+                resolve(result!.secure_url);
+              }
+            }
+          );
+          uploadStream.end(processedBuffer);
+        });
+      }
+
+      // Fallback to local storage
+      const outputPath = path.join(this.UPLOAD_DIR, filename);
+      await fs.mkdir(this.UPLOAD_DIR, { recursive: true });
+      await fs.writeFile(outputPath, processedBuffer);
+
+      return `/uploads/${filename}`;
+    } catch (error) {
+      logger.error('Base64 image processing failed:', error);
+      throw new Error('Failed to process base64 image');
+    }
+  }
+
   private static extractCloudinaryPublicId(url: string): string | null {
     try {
       // Extract public_id from Cloudinary URL

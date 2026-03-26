@@ -102,6 +102,123 @@ async function initializePostgreSQL(): Promise<void> {
       )
     `);
 
+    // ATTENDANCE SYSTEM TABLES (Non-breaking extension)
+    
+    // Core users table for authentication
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS core_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
+        qr_token TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Link core users to dynamic table records
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS user_data_links (
+        id SERIAL PRIMARY KEY,
+        core_user_id UUID NOT NULL REFERENCES core_users(id) ON DELETE CASCADE,
+        table_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(core_user_id, table_name, record_id)
+      )
+    `);
+
+    // CMS-driven form definitions
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS form_definitions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        description TEXT,
+        target_table TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS form_fields (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        form_id UUID NOT NULL REFERENCES form_definitions(id) ON DELETE CASCADE,
+        field_name TEXT NOT NULL,
+        field_label TEXT NOT NULL,
+        field_type TEXT NOT NULL CHECK (field_type IN ('text', 'email', 'password', 'number', 'date', 'file', 'camera', 'select', 'textarea')),
+        is_required BOOLEAN DEFAULT false,
+        is_email_field BOOLEAN DEFAULT false,
+        is_password_field BOOLEAN DEFAULT false,
+        options TEXT,
+        placeholder TEXT,
+        order_index INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Attendance system
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        description TEXT,
+        session_date DATE NOT NULL,
+        start_time TIME NOT NULL,
+        end_time TIME NOT NULL,
+        grace_period_minutes INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        qr_code TEXT,
+        created_by UUID REFERENCES core_users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS attendance_records (
+        id SERIAL PRIMARY KEY,
+        core_user_id UUID NOT NULL REFERENCES core_users(id) ON DELETE CASCADE,
+        session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        check_in_time TIMESTAMP DEFAULT NOW(),
+        method TEXT DEFAULT 'qr_scan',
+        location TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        UNIQUE(core_user_id, session_id)
+      )
+    `);
+
+    // Audit log for attendance
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS attendance_audit_logs (
+        id SERIAL PRIMARY KEY,
+        core_user_id UUID REFERENCES core_users(id),
+        session_id UUID REFERENCES attendance_sessions(id),
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        details TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes for performance
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_qr_token ON core_users(qr_token)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_user_data_links_core_user ON user_data_links(core_user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_form_fields_form_id ON form_fields(form_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_records_user ON attendance_records(core_user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_records_session ON attendance_records(session_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_date ON attendance_sessions(session_date)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_active ON attendance_sessions(is_active)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_user ON attendance_audit_logs(core_user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_session ON attendance_audit_logs(session_id)`);
+
     // Create default admin users if none exist
     const adminCount = await db.get("SELECT COUNT(*) as count FROM admins");
     if (adminCount.count === 0) {
@@ -162,7 +279,20 @@ export async function verifyDatabaseSchema(): Promise<void> {
     const db = getDatabase();
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
-    const requiredTables = ['admins', 'tables', 'dynamic_users', 'access_logs', 'qr_codes'];
+    const requiredTables = [
+      'admins', 
+      'tables', 
+      'dynamic_users', 
+      'access_logs', 
+      'qr_codes',
+      'core_users',
+      'user_data_links',
+      'form_definitions',
+      'form_fields',
+      'attendance_sessions',
+      'attendance_records',
+      'attendance_audit_logs'
+    ];
     
     for (const tableName of requiredTables) {
       let result;

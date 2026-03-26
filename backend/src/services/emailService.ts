@@ -3,7 +3,13 @@ import logger from '../config/logger';
 import fs from 'fs';
 import path from 'path';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend only if API key is available
+let resend: Resend | null = null;
+if (process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+} else {
+  logger.warn('⚠️  Resend API key not configured - email functionality will be disabled');
+}
 
 export interface SendIDCardEmailParams {
   to: string;
@@ -49,6 +55,11 @@ export class EmailService {
         pdfContent = fs.readFileSync(pdfPath);
       } else {
         throw new Error('PDF file not found');
+      }
+
+      // Check if resend is initialized
+      if (!resend) {
+        throw new Error('Email service not configured');
       }
 
       // Send email with Resend
@@ -175,6 +186,14 @@ export class EmailService {
   static async sendTestEmail(to: string): Promise<{ success: boolean; error?: string }> {
     try {
       if (!this.isConfigured()) {
+        return {
+          success: false,
+          error: 'Email service not configured'
+        };
+      }
+
+      // Check if resend is initialized
+      if (!resend) {
         return {
           success: false,
           error: 'Email service not configured'

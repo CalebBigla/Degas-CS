@@ -167,6 +167,251 @@ export const initializeDatabase = async (): Promise<void> => {
         else logger.info('ID card templates table ready');
       });
 
+      // ATTENDANCE SYSTEM TABLES (Non-breaking extension)
+      
+      // Core users table for authentication
+      db.run(`CREATE TABLE IF NOT EXISTS core_users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
+        qr_token TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) logger.error('Error creating core_users table:', err);
+        else logger.info('Core users table ready');
+      });
+
+      // Link core users to dynamic table records
+      db.run(`CREATE TABLE IF NOT EXISTS user_data_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        core_user_id TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (core_user_id) REFERENCES core_users(id) ON DELETE CASCADE,
+        UNIQUE(core_user_id, table_name, record_id)
+      )`, (err) => {
+        if (err) logger.error('Error creating user_data_links table:', err);
+        else logger.info('User data links table ready');
+      });
+
+      // CMS-driven form definitions - with migration support
+      db.run(`CREATE TABLE IF NOT EXISTS form_definitions (
+        id TEXT PRIMARY KEY,
+        form_name TEXT,
+        name TEXT,
+        description TEXT,
+        target_table TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) {
+          // Table already exists, try migration if needed
+          logger.warn('Form definitions table exists, attempting migration...');
+          db.run(`ALTER TABLE form_definitions ADD COLUMN form_name TEXT`, (alterErr) => {
+            if (alterErr) {
+              // Column might already exist, try to migrate data
+              logger.info('Form definitions table already has form_name column');
+              db.run(`UPDATE form_definitions SET form_name = COALESCE(form_name, name) WHERE form_name IS NULL AND name IS NOT NULL`, (migrateErr) => {
+                if (migrateErr) logger.warn('Could not migrate form_definitions data:', migrateErr);
+                else logger.info('Form definitions data migrated');
+              });
+            } else {
+              // Column was added, migrate data
+              db.run(`UPDATE form_definitions SET form_name = name WHERE name IS NOT NULL`, (migrateErr) => {
+                if (migrateErr) logger.warn('Could not migrate form_definitions data:', migrateErr);
+                else logger.info('Form definitions table ready (migrated column)');
+              });
+            }
+          });
+        } else {
+          logger.info('Form definitions table created/ready');
+        }
+      });
+
+      db.run(`CREATE TABLE IF NOT EXISTS form_fields (
+        id TEXT PRIMARY KEY,
+        form_id TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        field_label TEXT NOT NULL,
+        field_type TEXT NOT NULL CHECK (field_type IN ('text', 'email', 'password', 'number', 'date', 'file', 'camera', 'select', 'textarea')),
+        is_required BOOLEAN DEFAULT 0,
+        is_email_field BOOLEAN DEFAULT 0,
+        is_password_field BOOLEAN DEFAULT 0,
+        options TEXT,
+        placeholder TEXT,
+        order_index INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (form_id) REFERENCES form_definitions(id) ON DELETE CASCADE
+      )`, (err) => {
+        if (err) logger.error('Error creating form_fields table:', err);
+        else logger.info('Form fields table ready');
+      });
+
+      // Attendance system
+      db.run(`CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        session_name TEXT NOT NULL,
+        description TEXT,
+        session_date DATE,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        grace_period_minutes INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT 1,
+        qr_code TEXT,
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES core_users(id)
+      )`, (err) => {
+        if (err) {
+          // Table exists, try to add missing columns
+          logger.info('Attendance sessions table exists, checking for migrations...');
+          db.run(`ALTER TABLE attendance_sessions ADD COLUMN session_name TEXT`, (alterErr) => {
+            if (alterErr) logger.info('session_name column already exists or error:', alterErr.message);
+            else {
+              logger.info('Added session_name column');
+              db.run(`UPDATE attendance_sessions SET session_name = name WHERE session_name IS NULL`, () => {});
+            }
+          });
+        } else {
+          logger.info('Attendance sessions table ready');
+        }
+      });
+
+      db.run(`CREATE TABLE IF NOT EXISTS attendance_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        core_user_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        checked_in_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        method TEXT DEFAULT 'qr_scan',
+        location TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        FOREIGN KEY (core_user_id) REFERENCES core_users(id) ON DELETE CASCADE,
+        FOREIGN KEY (session_id) REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        UNIQUE(core_user_id, session_id)
+      )`, (err) => {
+        if (err) {
+          logger.info('Attendance records table exists, checking for migrations...');
+          db.run(`ALTER TABLE attendance_records ADD COLUMN checked_in_at DATETIME`, (alterErr) => {
+            if (alterErr) logger.info('checked_in_at column already exists or error:', alterErr.message);
+            else {
+              logger.info('Added checked_in_at column');
+              db.run(`UPDATE attendance_records SET checked_in_at = check_in_time WHERE checked_in_at IS NULL`, () => {});
+            }
+          });
+        } else {
+          logger.info('Attendance records table ready');
+        }
+      });
+
+      // Audit log for attendance
+      db.run(`CREATE TABLE IF NOT EXISTS attendance_audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        core_user_id TEXT,
+        session_id TEXT,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        details TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (core_user_id) REFERENCES core_users(id),
+        FOREIGN KEY (session_id) REFERENCES attendance_sessions(id)
+      )`, (err) => {
+        if (err) logger.error('Error creating attendance_audit_logs table:', err);
+        else logger.info('Attendance audit logs table ready');
+      });
+
+      // Create dynamic data tables
+      db.run(`CREATE TABLE IF NOT EXISTS Students (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT,
+        fullName TEXT,
+        studentId TEXT,
+        phone TEXT,
+        dateOfBirth TEXT,
+        photoUrl TEXT,
+        uuid TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) logger.error('Error creating Students table:', err);
+        else logger.info('Students table ready');
+      });
+
+      db.run(`CREATE TABLE IF NOT EXISTS Staff (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT,
+        fullName TEXT,
+        staffId TEXT,
+        department TEXT,
+        position TEXT,
+        photoUrl TEXT,
+        uuid TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) logger.error('Error creating Staff table:', err);
+        else logger.info('Staff table ready');
+      });
+
+      db.run(`CREATE TABLE IF NOT EXISTS Visitors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT,
+        fullName TEXT,
+        visitorId TEXT,
+        company TEXT,
+        phone TEXT,
+        photoUrl TEXT,
+        uuid TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) logger.error('Error creating Visitors table:', err);
+        else logger.info('Visitors table ready');
+      });
+
+      db.run(`CREATE TABLE IF NOT EXISTS Contractors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT,
+        password TEXT,
+        fullName TEXT,
+        contractorId TEXT,
+        companyName TEXT,
+        serviceType TEXT,
+        phone TEXT,
+        photoUrl TEXT,
+        uuid TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`, (err) => {
+        if (err) logger.error('Error creating Contractors table:', err);
+        else logger.info('Contractors table ready');
+      });
+
+      // Create indexes for performance
+      db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_qr_token ON core_users(qr_token)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_user_data_links_core_user ON user_data_links(core_user_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_form_fields_form_id ON form_fields(form_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_records_user ON attendance_records(core_user_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_records_session ON attendance_records(session_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_date ON attendance_sessions(session_date)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_active ON attendance_sessions(is_active)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_user ON attendance_audit_logs(core_user_id)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_session ON attendance_audit_logs(session_id)`);
+
       // Create default ID card template if none exists
       db.get("SELECT COUNT(*) as count FROM id_card_templates", (err, row: any) => {
         if (err) {

@@ -26,12 +26,18 @@ services:
         generateValue: true
       - key: QR_SECRET
         generateValue: true
+      - key: CORE_USER_JWT_SECRET
+        generateValue: true
+      - key: CORE_USER_JWT_EXPIRES_IN
+        value: 7d
       - key: FRONTEND_URL
         value: https://degas-cs-frontend.onrender.com
       - key: UPLOAD_DIR
         value: /opt/render/project/src/backend/uploads
       - key: MAX_FILE_SIZE
         value: 10485760
+      - key: DATABASE_TYPE
+        value: sqlite
 
   # Frontend Static Site
   - type: web

@@ -516,17 +516,27 @@ async function initializeBackend() {
     
     // Import routes dynamically after database is ready
     const authRoutes = (await import('./routes/auth')).default;
+    const coreAuthRoutes = (await import('./routes/coreAuth')).default;
     const userRoutes = (await import('./routes/users')).default;
     const scannerRoutes = (await import('./routes/scanner')).default;
     const analyticsRoutes = (await import('./routes/analytics')).default;
     const tableRoutes = (await import('./routes/tables')).default;
+    const formRoutes = (await import('./routes/forms')).default;
+    const onboardingRoutes = (await import('./routes/onboarding')).default;
+    const attendanceRoutes = (await import('./routes/attendance')).default;
+    const dashboardRoutes = (await import('./routes/dashboard')).default;
 
     // Register routes
     app.use('/api/auth', authRoutes);
+    app.use('/api/core-auth', coreAuthRoutes);
     app.use('/api/users', userRoutes);
     app.use('/api/scanner', scannerRoutes);
     app.use('/api/analytics', analyticsRoutes);
     app.use('/api/tables', tableRoutes);
+    app.use('/api', formRoutes); // Forms routes include both /api/forms and /api/admin/forms
+    app.use('/api/onboarding', onboardingRoutes);
+    app.use('/api', attendanceRoutes); // Attendance routes include both /api/admin/sessions and /api/attendance
+    app.use('/api', dashboardRoutes); // Dashboard routes include both /api/user/dashboard and /api/admin
     
     // Settings routes
     const settingsRoutes = (await import('./routes/settings')).default;

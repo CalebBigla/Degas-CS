@@ -1,246 +1,295 @@
-import { getDatabase } from '../config/database';
+import { db } from '../config/database';
 import logger from '../config/logger';
+import userDataLinkService from './userDataLinkService';
+import attendanceService from './attendanceService';
+import { QRService } from './qrService';
 
-export interface DashboardMetrics {
-  totalUsers: number;
-  totalScans: number;
-  grantedScans: number;
-  deniedScans: number;
-  grantRate: number;
-  recentScans: Array<{
+export interface UserDashboardData {
+  user: {
     id: string;
-    userName: string;
-    userPhoto?: string;
-    tableName: string;
-    status: 'granted' | 'denied';
-    timestamp: Date;
-    location?: string;
-  }>;
+    email: string;
+    full_name: string | null;
+    phone: string | null;
+    created_at: string;
+  };
+  profile: {
+    table: string;
+    data: Record<string, any>;
+  } | null;
+  qrCode: {
+    token: string;
+    image: string;
+  };
+  attendance: {
+    history: any[];
+    stats: {
+      totalSessions: number;
+      attended: number;
+      missed: number;
+      attendanceRate: number;
+    };
+  };
 }
 
-/**
- * Dashboard Service - Real-time metrics from database
- * No hardcoded data, pure database aggregation
- */
-export class DashboardService {
+class DashboardService {
   /**
-   * Get comprehensive dashboard metrics
+   * Get complete dashboard data for a user
    */
-  static async getMetrics(): Promise<DashboardMetrics> {
-    const db = getDatabase();
-    
+  async getUserDashboard(coreUserId: string): Promise<UserDashboardData> {
     try {
-      // Total users across all tables
-      const totalUsers = await this.getTotalUsers();
-      
-      // Total scans (all access logs)
-      const totalScans = await this.getTotalScans();
-      
-      // Granted scans
-      const grantedScans = await this.getGrantedScans();
-      
-      // Denied scans
-      const deniedScans = totalScans - grantedScans;
-      
-      // Grant rate percentage
-      const grantRate = totalScans > 0 ? Math.round((grantedScans / totalScans) * 100) : 0;
-      
-      // Recent scans with user details
-      const recentScans = await this.getRecentScansWithUserDetails();
+      // Get core user data
+      const user = await db.get(
+        'SELECT id, email, full_name, phone, created_at FROM core_users WHERE id = ?',
+        [coreUserId]
+      );
 
-      logger.info('📊 Dashboard metrics retrieved', {
-        totalUsers,
-        totalScans,
-        grantedScans,
-        deniedScans,
-        grantRate
-      });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Get linked profile data
+      const linkedData = await userDataLinkService.getLinkedData(coreUserId);
+      
+      let profile = null;
+      if (linkedData.length > 0) {
+        const link = linkedData[0];
+        profile = {
+          table: link.tableName,
+          data: link.data
+        };
+      }
+
+      // Generate user QR code
+      let qrToken = '';
+      let qrImage = '';
+      
+      if (profile) {
+        // Get user UUID from profile data
+        const userUuid = profile.data.uuid;
+        
+        if (userUuid) {
+          // Generate QR code using QRService
+          const qrResult = await QRService.generateSecureQR(userUuid, profile.table);
+          qrToken = qrResult.qrData;
+          qrImage = qrResult.qrImage;
+        }
+      }
+
+      // Get attendance history
+      const history = await attendanceService.getUserAttendanceHistory(coreUserId);
+
+      // Calculate attendance stats
+      const totalSessions = await db.get(
+        'SELECT COUNT(*) as count FROM attendance_sessions WHERE is_active = 1'
+      );
+
+      const attended = history.length;
+      const total = totalSessions?.count || 0;
+      const missed = Math.max(0, total - attended);
+      const rate = total > 0 ? (attended / total) * 100 : 0;
 
       return {
-        totalUsers,
-        totalScans,
-        grantedScans,
-        deniedScans,
-        grantRate,
-        recentScans
+        user: {
+          id: user.id,
+          email: user.email,
+          full_name: user.full_name,
+          phone: user.phone,
+          created_at: user.created_at
+        },
+        profile,
+        qrCode: {
+          token: qrToken,
+          image: qrImage
+        },
+        attendance: {
+          history,
+          stats: {
+            totalSessions: total,
+            attended,
+            missed,
+            attendanceRate: Math.round(rate * 100) / 100
+          }
+        }
       };
     } catch (error) {
-      logger.error('❌ Failed to get dashboard metrics:', error);
+      logger.error('Error getting user dashboard:', error);
       throw error;
     }
   }
 
   /**
-   * Get total user count across all tables
+   * Get all core users (admin only)
    */
-  private static async getTotalUsers(): Promise<number> {
-    const db = getDatabase();
+  async getAllCoreUsers(filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ users: any[]; total: number }> {
     try {
-      const result = await db.get(
-        `SELECT COUNT(DISTINCT id) as count FROM dynamic_users`
-      );
-      return parseInt(result?.count || '0');
-    } catch (error) {
-      logger.error('Error counting total users:', error);
-      return 0;
-    }
-  }
+      let query = 'SELECT id, email, full_name, phone, created_at FROM core_users WHERE 1=1';
+      const params: any[] = [];
 
-  /**
-   * Get total scan count from access logs
-   */
-  private static async getTotalScans(): Promise<number> {
-    const db = getDatabase();
-    try {
-      const result = await db.get(
-        `SELECT COUNT(*) as count FROM access_logs`
-      );
-      return parseInt(result?.count || '0');
-    } catch (error) {
-      logger.error('Error counting total scans:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Get count of granted access scans
-   */
-  private static async getGrantedScans(): Promise<number> {
-    const db = getDatabase();
-    const dbType = process.env.DATABASE_TYPE || 'sqlite';
-    
-    try {
-      const condition = dbType === 'sqlite' ? 'access_granted = 1' : 'access_granted = true';
-      const result = await db.get(
-        `SELECT COUNT(*) as count FROM access_logs WHERE ${condition}`
-      );
-      return parseInt(result?.count || '0');
-    } catch (error) {
-      logger.error('Error counting granted scans:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Get recent scans with full user and table information
-   * Joins access_logs → dynamic_users → tables
-   */
-  private static async getRecentScansWithUserDetails(): Promise<DashboardMetrics['recentScans']> {
-    const db = getDatabase();
-    const dbType = process.env.DATABASE_TYPE || 'sqlite';
-    
-    try {
-      const scans = await db.all(
-        `SELECT 
-          al.id,
-          al.access_granted,
-          al.scan_timestamp,
-          al.scanner_location,
-          du.data as user_data,
-          du.photo_url,
-          t.name as table_name
-        FROM access_logs al
-        LEFT JOIN dynamic_users du ON al.user_id = du.id
-        LEFT JOIN tables t ON du.table_id = t.id
-        ORDER BY al.scan_timestamp DESC
-        LIMIT 10`
-      );
-
-      return scans.map((scan: any) => {
-        let userName = 'Unknown User';
-        
-        // Extract user name from dynamic user data
-        if (scan.user_data) {
-          try {
-            const userData = typeof scan.user_data === 'string' 
-              ? JSON.parse(scan.user_data) 
-              : scan.user_data;
-            userName = userData.fullName || userData.name || 'Unknown User';
-          } catch (e) {
-            logger.warn('Failed to parse user data:', e);
-          }
-        }
-
-        // Handle boolean for PostgreSQL and integer for SQLite
-        const isGranted = dbType === 'sqlite' 
-          ? scan.access_granted === 1 
-          : scan.access_granted === true;
-
-        return {
-          id: scan.id.toString(),
-          userName,
-          userPhoto: scan.photo_url || undefined,
-          tableName: scan.table_name || 'Unknown Table',
-          status: isGranted ? 'granted' : 'denied',
-          timestamp: new Date(scan.scan_timestamp),
-          location: scan.scanner_location || undefined
-        };
-      });
-    } catch (error) {
-      logger.error('Error fetching recent scans with user details:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get metrics for a specific time period (e.g., today, this week)
-   */
-  static async getMetricsForPeriod(period: 'today' | 'week' | 'month'): Promise<{
-    scans: number;
-    granted: number;
-    denied: number;
-  }> {
-    const db = getDatabase();
-    const dbType = process.env.DATABASE_TYPE || 'sqlite';
-    
-    let dateFilter = '';
-    if (dbType === 'sqlite') {
-      switch (period) {
-        case 'today':
-          dateFilter = `DATE(scan_timestamp) = DATE('now')`;
-          break;
-        case 'week':
-          dateFilter = `scan_timestamp >= datetime('now', '-7 days')`;
-          break;
-        case 'month':
-          dateFilter = `scan_timestamp >= datetime('now', '-30 days')`;
-          break;
+      // Search filter
+      if (filters?.search) {
+        query += ' AND (email LIKE ? OR full_name LIKE ?)';
+        const searchTerm = `%${filters.search}%`;
+        params.push(searchTerm, searchTerm);
       }
-    } else {
-      // PostgreSQL
-      switch (period) {
-        case 'today':
-          dateFilter = `DATE(scan_timestamp) = CURRENT_DATE`;
-          break;
-        case 'week':
-          dateFilter = `scan_timestamp >= (NOW() - INTERVAL '7 days')`;
-          break;
-        case 'month':
-          dateFilter = `scan_timestamp >= (NOW() - INTERVAL '30 days')`;
-          break;
-      }
-    }
 
-    try {
-      const grantedCondition = dbType === 'sqlite' ? 'access_granted = 1' : 'access_granted = true';
-      const result = await db.get(
-        `SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN ${grantedCondition} THEN 1 ELSE 0 END) as granted
-        FROM access_logs
-        WHERE ${dateFilter}`
+      // Get total count
+      const countQuery = query.replace('SELECT id, email, full_name, phone, created_at', 'SELECT COUNT(*) as count');
+      const countResult = await db.get(countQuery, params);
+      const total = countResult?.count || 0;
+
+      // Add pagination
+      query += ' ORDER BY created_at DESC';
+      
+      if (filters?.limit) {
+        query += ' LIMIT ?';
+        params.push(filters.limit);
+      }
+
+      if (filters?.offset) {
+        query += ' OFFSET ?';
+        params.push(filters.offset);
+      }
+
+      const users = await db.all(query, params);
+
+      // Enrich with linked data
+      const enrichedUsers = await Promise.all(
+        users.map(async (user: any) => {
+          const linkedData = await userDataLinkService.getLinkedData(user.id);
+          const attendanceCount = await db.get(
+            'SELECT COUNT(*) as count FROM attendance_records WHERE core_user_id = ?',
+            [user.id]
+          );
+
+          return {
+            ...user,
+            linkedTables: linkedData.map(link => ({
+              table: link.tableName,
+              recordId: link.recordId
+            })),
+            attendanceCount: attendanceCount?.count || 0
+          };
+        })
       );
 
-      const total = parseInt(result?.total || '0');
-      const granted = parseInt(result?.granted || '0');
-      const denied = total - granted;
-
-      return { scans: total, granted, denied };
+      return {
+        users: enrichedUsers,
+        total
+      };
     } catch (error) {
-      logger.error(`Error getting metrics for period ${period}:`, error);
-      return { scans: 0, granted: 0, denied: 0 };
+      logger.error('Error getting all core users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get core user by ID with full details (admin only)
+   */
+  async getCoreUserById(coreUserId: string): Promise<any> {
+    try {
+      const user = await db.get(
+        'SELECT id, email, full_name, phone, created_at FROM core_users WHERE id = ?',
+        [coreUserId]
+      );
+
+      if (!user) {
+        return null;
+      }
+
+      // Get linked data
+      const linkedData = await userDataLinkService.getLinkedData(coreUserId);
+
+      // Get attendance history
+      const attendanceHistory = await attendanceService.getUserAttendanceHistory(coreUserId);
+
+      // Get attendance stats
+      const attendanceCount = await db.get(
+        'SELECT COUNT(*) as count FROM attendance_records WHERE core_user_id = ?',
+        [coreUserId]
+      );
+
+      return {
+        ...user,
+        linkedData,
+        attendanceHistory,
+        attendanceCount: attendanceCount?.count || 0
+      };
+    } catch (error) {
+      logger.error('Error getting core user by ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get attendance overview (admin only)
+   */
+  async getAttendanceOverview(): Promise<any> {
+    try {
+      // Total users
+      const totalUsers = await db.get(
+        'SELECT COUNT(*) as count FROM core_users'
+      );
+
+      // Total sessions
+      const totalSessions = await db.get(
+        'SELECT COUNT(*) as count FROM attendance_sessions'
+      );
+
+      // Active sessions
+      const activeSessions = await db.get(
+        'SELECT COUNT(*) as count FROM attendance_sessions WHERE is_active = 1'
+      );
+
+      // Total check-ins
+      const totalCheckIns = await db.get(
+        'SELECT COUNT(*) as count FROM attendance_records'
+      );
+
+      // Recent sessions with attendance
+      const recentSessions = await db.all(
+        `SELECT 
+          ats.id,
+          ats.session_name,
+          ats.start_time,
+          ats.end_time,
+          ats.is_active,
+          COUNT(ar.id) as attendance_count
+         FROM attendance_sessions ats
+         LEFT JOIN attendance_records ar ON ats.id = ar.session_id
+         GROUP BY ats.id
+         ORDER BY ats.start_time DESC
+         LIMIT 10`
+      );
+
+      // Calculate average attendance rate
+      let totalRate = 0;
+      let sessionCount = 0;
+
+      for (const session of recentSessions) {
+        const stats = await attendanceService.getSessionStats(session.id);
+        totalRate += stats.attendanceRate;
+        sessionCount++;
+      }
+
+      const averageAttendanceRate = sessionCount > 0 ? totalRate / sessionCount : 0;
+
+      return {
+        totalUsers: totalUsers?.count || 0,
+        totalSessions: totalSessions?.count || 0,
+        activeSessions: activeSessions?.count || 0,
+        totalCheckIns: totalCheckIns?.count || 0,
+        averageAttendanceRate: Math.round(averageAttendanceRate * 100) / 100,
+        recentSessions
+      };
+    } catch (error) {
+      logger.error('Error getting attendance overview:', error);
+      throw error;
     }
   }
 }
 
-export default DashboardService;
+export default new DashboardService();
