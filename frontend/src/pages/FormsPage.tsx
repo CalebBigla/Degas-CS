@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, EyeOff, Link2, Copy } from 'lucide-react';
 import api from '../lib/api';
+import { CreateFormModal } from '../components/forms/CreateFormModal';
+import toast from 'react-hot-toast';
 
 interface FormField {
   field_name: string;
@@ -40,6 +42,7 @@ export function FormsPage() {
       setForms(response.data.data);
     } catch (error) {
       console.error('Failed to load forms:', error);
+      toast.error('Failed to load forms');
     } finally {
       setLoading(false);
     }
@@ -49,9 +52,11 @@ export function FormsPage() {
     if (!confirm('Delete this form?')) return;
     try {
       await api.delete(`/admin/forms/${id}`);
+      toast.success('Form deleted');
       loadForms();
     } catch (error) {
       console.error('Failed to delete form:', error);
+      toast.error('Failed to delete form');
     }
   };
 
@@ -60,10 +65,19 @@ export function FormsPage() {
       await api.put(`/admin/forms/${form.id}`, {
         is_active: !form.is_active
       });
+      toast.success(`Form ${!form.is_active ? 'activated' : 'deactivated'}`);
       loadForms();
     } catch (error) {
       console.error('Failed to toggle form:', error);
+      toast.error('Failed to update form');
     }
+  };
+
+  const copyRegistrationLink = (formId: string) => {
+    const baseUrl = window.location.origin;
+    const link = `${baseUrl}/register/${formId}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Registration link copied to clipboard!');
   };
 
   if (loading) {
@@ -71,15 +85,15 @@ export function FormsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white">Onboarding Forms</h1>
-          <p className="text-gray-400 mt-1">Create and manage registration forms</p>
+          <h1 className="text-3xl font-bold text-gray-900">Onboarding Forms</h1>
+          <p className="text-gray-600 mt-2">Create and manage registration forms</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition"
         >
           <Plus size={20} />
           Create Form
@@ -88,61 +102,75 @@ export function FormsPage() {
 
       <div className="grid gap-4">
         {forms.map((form) => (
-          <div key={form.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div key={form.id} className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-semibold text-white">{form.form_name}</h3>
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    form.is_active ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'
+                  <h3 className="text-xl font-semibold text-gray-900">{form.form_name}</h3>
+                  <span className={`px-3 py-1 rounded text-xs font-medium ${
+                    form.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
                   }`}>
                     {form.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <p className="text-gray-400 mt-1">{form.description}</p>
-                <div className="flex gap-4 mt-3 text-sm">
-                  <span className="text-gray-400">
-                    Target: <span className="text-white">{form.target_table}</span>
+                <p className="text-gray-600 mt-2">{form.description}</p>
+                <div className="flex gap-6 mt-4 text-sm">
+                  <span className="text-gray-600">
+                    Target Table: <span className="font-medium text-gray-900">{form.target_table}</span>
                   </span>
-                  <span className="text-gray-400">
-                    Fields: <span className="text-white">{form.fields?.length || 0}</span>
+                  <span className="text-gray-600">
+                    Fields: <span className="font-medium text-gray-900">{form.fields?.length || 0}</span>
+                  </span>
+                </div>
+                
+                {/* Registration Link */}
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => copyRegistrationLink(form.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded text-sm text-blue-600 font-medium transition"
+                  >
+                    <Link2 size={14} />
+                    Copy Registration Link
+                  </button>
+                  <span className="text-xs text-gray-500 font-mono">
+                    {window.location.origin}/register/{form.id}
                   </span>
                 </div>
               </div>
               
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <button
                   onClick={() => toggleActive(form)}
-                  className="p-2 hover:bg-gray-700 rounded"
+                  className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded transition"
                   title={form.is_active ? 'Deactivate' : 'Activate'}
                 >
-                  {form.is_active ? <Eye size={18} className="text-green-400" /> : <EyeOff size={18} className="text-gray-400" />}
+                  {form.is_active ? <Eye size={18} /> : <EyeOff size={18} />}
                 </button>
                 <button
                   onClick={() => { setEditingForm(form); setShowModal(true); }}
-                  className="p-2 hover:bg-gray-700 rounded"
+                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition"
                   title="Edit"
                 >
-                  <Edit2 size={18} className="text-blue-400" />
+                  <Edit2 size={18} />
                 </button>
                 <button
                   onClick={() => deleteForm(form.id)}
-                  className="p-2 hover:bg-gray-700 rounded"
+                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition"
                   title="Delete"
                 >
-                  <Trash2 size={18} className="text-red-400" />
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
 
             {form.fields && form.fields.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-700">
-                <p className="text-sm text-gray-400 mb-2">Form Fields:</p>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-sm font-medium text-gray-700 mb-3">Form Fields:</p>
                 <div className="flex flex-wrap gap-2">
                   {form.fields.map((field) => (
-                    <span key={field.field_name} className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300">
+                    <span key={field.field_name} className="px-3 py-1 bg-gray-100 rounded text-xs text-gray-700 font-medium">
                       {field.field_label}
-                      {field.is_required && <span className="text-red-400 ml-1">*</span>}
+                      {field.is_required && <span className="text-red-600 ml-1.5">*</span>}
                     </span>
                   ))}
                 </div>
@@ -152,17 +180,27 @@ export function FormsPage() {
         ))}
 
         {forms.length === 0 && (
-          <div className="text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
-            <p className="text-gray-400">No forms created yet</p>
+          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <p className="text-gray-600 mb-4">No forms created yet</p>
             <button
               onClick={() => setShowModal(true)}
-              className="mt-4 text-blue-400 hover:text-blue-300"
+              className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Create your first form
             </button>
           </div>
         )}
       </div>
+
+      <CreateFormModal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingForm(null);
+        }}
+        onSuccess={loadForms}
+        editingForm={editingForm}
+      />
     </div>
   );
 }

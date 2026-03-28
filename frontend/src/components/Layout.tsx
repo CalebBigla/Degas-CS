@@ -17,9 +17,11 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { admin, logout } = useAuth();
+  const { admin, user, logout, userRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const pathPrefix = isAdmin ? '/admin' : '/user';
 
   const handleLogout = () => {
     logout();
@@ -27,13 +29,13 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, external: false },
-    { name: 'Tables', href: '/tables', icon: Users, external: false },
-    { name: 'Forms', href: '/forms', icon: FileText, external: false },
-    { name: 'Attendance', href: '/attendance', icon: BarChart3, external: false },
+    { name: 'Dashboard', href: `${pathPrefix}/dashboard`, icon: LayoutDashboard, external: false },
+    { name: 'Tables', href: `${pathPrefix}/tables`, icon: Users, external: false },
+    { name: 'Forms', href: `${pathPrefix}/forms`, icon: FileText, external: false },
+    { name: 'Attendance', href: `${pathPrefix}/attendance`, icon: BarChart3, external: false },
     { name: 'Scanner', href: '/scanner.html', icon: ScanLine, external: true },
-    { name: 'Access Logs', href: '/access-logs', icon: FileText, external: false },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3, external: false },
+    { name: 'Access Logs', href: `${pathPrefix}/access-logs`, icon: FileText, external: false },
+    { name: 'Analytics', href: `${pathPrefix}/analytics`, icon: BarChart3, external: false },
   ];
 
   return (
@@ -58,7 +60,7 @@ export function Layout({ children }: LayoutProps) {
           <ul className="space-y-2">
             {navigation.map((item) => {
               const isActive = !item.external && (location.pathname === item.href || 
-                             (item.href === '/tables' && location.pathname.startsWith('/tables')));
+                             (item.href.includes('/tables') && location.pathname.startsWith(item.href)));
               
               if (item.external) {
                 return (
@@ -100,12 +102,12 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald to-emerald/70 flex items-center justify-center ring-2 ring-white/20">
                 <span className="text-white font-semibold text-sm">
-                  {admin?.username?.charAt(0).toUpperCase()}
+                  {(admin?.username || user?.email)?.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div>
-                <div className="font-medium text-white text-sm">{admin?.username}</div>
-                <div className="text-xs text-gray-400 capitalize">{admin?.role}</div>
+                <div className="font-medium text-white text-sm">{admin?.username || user?.email}</div>
+                <div className="text-xs text-gray-400 capitalize">{userRole}</div>
               </div>
             </div>
             <button

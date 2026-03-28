@@ -115,6 +115,43 @@ class DashboardController {
       });
     }
   }
+
+  /**
+   * Get user's QR code (requires core user authentication)
+   * GET /api/user/qr-code
+   */
+  async getUserQRCode(req: Request, res: Response) {
+    try {
+      const coreUserId = (req as any).coreUser?.id;
+
+      if (!coreUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      const qrData = await dashboardService.getUserQRCode(coreUserId);
+
+      if (!qrData) {
+        return res.status(404).json({
+          success: false,
+          message: 'QR code not found for user'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: qrData
+      });
+    } catch (error: any) {
+      logger.error('Error getting user QR code:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to get QR code'
+      });
+    }
+  }
 }
 
 export default new DashboardController();

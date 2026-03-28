@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { QrCode, Calendar, Download } from 'lucide-react';
+import { QrCode, Calendar, Download, Scan } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 
 export function MemberDashboardPage() {
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +35,16 @@ export function MemberDashboardPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold text-white mb-6">My Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-white">My Dashboard</h1>
+        <button
+          onClick={() => navigate('/mark-attendance')}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+        >
+          <Scan size={20} />
+          Mark Attendance
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Card */}

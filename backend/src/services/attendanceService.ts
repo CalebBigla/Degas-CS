@@ -40,16 +40,27 @@ class AttendanceService {
       const sessionId = this.generateId();
       const now = new Date().toISOString();
 
-      // Validate time window
-      const startTime = new Date(sessionData.start_time);
-      const endTime = new Date(sessionData.end_time);
+      let sessionDate = null;
+      let finalStartTime = null;
+      let finalEndTime = null;
 
-      if (endTime <= startTime) {
-        throw new Error('End time must be after start time');
+      // If time constraints are provided, validate and use them
+      if (sessionData.start_time && sessionData.end_time) {
+        const startTime = new Date(sessionData.start_time);
+        const endTime = new Date(sessionData.end_time);
+
+        if (endTime <= startTime) {
+          throw new Error('End time must be after start time');
+        }
+
+        // Extract session date from start_time
+        sessionDate = startTime.toISOString().split('T')[0]; // YYYY-MM-DD
+        finalStartTime = sessionData.start_time;
+        finalEndTime = sessionData.end_time;
+      } else {
+        // No time constraints - set date to today
+        sessionDate = now.split('T')[0]; // YYYY-MM-DD
       }
-
-      // Extract session date from start_time
-      const sessionDate = startTime.toISOString().split('T')[0]; // YYYY-MM-DD
 
       await db.run(
         `INSERT INTO attendance_sessions (
@@ -62,9 +73,9 @@ class AttendanceService {
           sessionData.session_name,
           sessionData.description || null,
           sessionDate,
-          sessionData.start_time,
-          sessionData.end_time,
-          sessionData.grace_period_minutes || 0,
+          finalStartTime,
+          finalEndTime,
+          (sessionData.grace_period_minutes !== undefined && sessionData.grace_period_minutes !== null) ? sessionData.grace_period_minutes : 0,
           sessionData.is_active ? 1 : 0,
           sessionData.created_by,
           now,
@@ -417,10 +428,12 @@ class AttendanceService {
    */
   async getSessionStats(sessionId: string): Promise<AttendanceStats> {
     try {
+      // Count only regular users (excluding admins)
       const totalUsers = await db.get(
-        'SELECT COUNT(*) as count FROM core_users'
+        "SELECT COUNT(*) as count FROM core_users WHERE role = 'user' OR role IS NULL"
       );
 
+      // Count actual check-ins for this session
       const attended = await db.get(
         'SELECT COUNT(*) as count FROM attendance_records WHERE session_id = ?',
         [sessionId]

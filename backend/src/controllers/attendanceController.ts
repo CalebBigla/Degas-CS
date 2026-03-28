@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import attendanceService from '../services/attendanceService';
+import { db } from '../config/database';
 import logger from '../config/logger';
 
 class AttendanceController {
@@ -365,6 +366,235 @@ class AttendanceController {
       res.status(500).json({
         success: false,
         message: 'Failed to get attendance history'
+      });
+    }
+  }
+  /**
+   * User self-check-in by scanning location QR code
+   * POST /api/user/attendance/checkin
+   */
+  async userCheckIn(req: Request, res: Response) {
+    try {
+      const { sessionQrData } = req.body;
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      if (!sessionQrData) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session QR data is required'
+        });
+      }
+
+      // Decode and verify session QR code
+      let sessionData;
+      try {
+        // Session QR format: "SESSION:{sessionId}:{timestamp}:{signature}"
+        const decoded = Buffer.from(sessionQrData, 'base64').toString('utf-8');
+        const parts = decoded.split(':');
+        
+        if (parts[0] !== 'SESSION' || parts.length < 2) {
+          throw new Error('Invalid session QR code');
+        }
+
+        sessionData = {
+          sessionId: parts[1],
+          timestamp: parts[2] ? parseInt(parts[2]) : Date.now()
+        };
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or corrupted QR code'
+        });
+      }
+
+      // Get session details
+      const session = await db.get(
+        'SELECT * FROM attendance_sessions WHERE id = ?',
+        [sessionData.sessionId]
+      );
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found'
+        });
+      }
+
+      if (!session.is_active) {
+        return res.status(400).json({
+          success: false,
+          message: 'This session is no longer active'
+        });
+      }
+
+      // Check if session has ended
+      const now = new Date();
+      const endTime = new Date(session.end_time);
+      
+      if (now > endTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'This session has ended'
+        });
+      }
+
+      // Get user's data link to find their UUID
+      const userLink = await db.get(
+        'SELECT * FROM user_data_links WHERE core_user_id = ?',
+        [userId]
+      );
+
+      if (!userLink) {
+        return res.status(404).json({
+          success: false,
+          message: 'User profile not found'
+        });
+      }
+
+      // Get user's UUID from their table
+      const userRecord = await db.get(
+        `SELECT uuid FROM ${userLink.table_name} WHERE id = ?`,
+        [userLink.record_id]
+      );
+
+      if (!userRecord) {
+        return res.status(404).json({
+          success: false,
+          message: 'User record not found'
+        });
+      }
+
+      const userUuid = userRecord.uuid;
+
+      // Check if already checked in
+      const existing = await db.get(
+        'SELECT * FROM attendance_records WHERE session_id = ? AND user_uuid = ?',
+        [sessionData.sessionId, userUuid]
+      );
+
+      if (existing) {
+        return res.status(200).json({
+          success: true,
+          message: 'Already checked in',
+          data: {
+            sessionName: session.session_name,
+            timestamp: existing.check_in_time,
+            status: 'Already recorded'
+          }
+        });
+      }
+
+      // Record attendance
+      const recordId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const checkInTime = new Date().toISOString();
+
+      await db.run(
+        `INSERT INTO attendance_records (
+          id, session_id, user_uuid, table_name, 
+          check_in_time, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          recordId,
+          sessionData.sessionId,
+          userUuid,
+          userLink.table_name,
+          checkInTime,
+          'present',
+          checkInTime
+        ]
+      );
+
+      logger.info(`User ${userUuid} checked in to session ${sessionData.sessionId}`);
+
+      res.json({
+        success: true,
+        message: 'Attendance recorded successfully',
+        data: {
+          sessionName: session.session_name,
+          timestamp: checkInTime,
+          status: 'Present'
+        }
+      });
+    } catch (error) {
+      logger.error('User check-in error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to record attendance'
+      });
+    }
+  }
+
+  /**
+   * Get user's recent attendance records
+   * GET /api/user/attendance/recent
+   */
+  async getUserRecentAttendance(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      // Get user's UUID
+      const userLink = await db.get(
+        'SELECT * FROM user_data_links WHERE core_user_id = ?',
+        [userId]
+      );
+
+      if (!userLink) {
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
+
+      const userRecord = await db.get(
+        `SELECT uuid FROM ${userLink.table_name} WHERE id = ?`,
+        [userLink.record_id]
+      );
+
+      if (!userRecord) {
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
+
+      // Get recent attendance records
+      const records = await db.all(
+        `SELECT 
+          ar.*, 
+          s.session_name,
+          s.start_time,
+          s.end_time
+        FROM attendance_records ar
+        JOIN attendance_sessions s ON ar.session_id = s.id
+        WHERE ar.user_uuid = ?
+        ORDER BY ar.check_in_time DESC
+        LIMIT 10`,
+        [userRecord.uuid]
+      );
+
+      res.json({
+        success: true,
+        data: records
+      });
+    } catch (error) {
+      logger.error('Get user attendance error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get attendance records'
       });
     }
   }

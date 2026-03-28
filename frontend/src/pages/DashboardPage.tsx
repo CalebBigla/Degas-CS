@@ -37,7 +37,7 @@ export function DashboardPage() {
     const fetchStats = async () => {
       try {
         const response = await api.get('/analytics/dashboard');
-        setStats(response.data);
+        setStats(response.data.data);
       } catch (error) {
         console.error('Failed to fetch dashboard stats:', error);
       } finally {
@@ -104,7 +104,7 @@ export function DashboardPage() {
 
       try {
         const statsResponse = await api.get('/analytics/dashboard');
-        setStats(statsResponse.data);
+        setStats(statsResponse.data.data);
       } catch (statsError) {
         console.warn('Failed to refresh stats:', statsError);
       }

@@ -229,9 +229,9 @@ class DashboardService {
    */
   async getAttendanceOverview(): Promise<any> {
     try {
-      // Total users
+      // Total users (excluding admins - only count regular users)
       const totalUsers = await db.get(
-        'SELECT COUNT(*) as count FROM core_users'
+        "SELECT COUNT(*) as count FROM core_users WHERE role = 'user' OR role IS NULL"
       );
 
       // Total sessions
@@ -244,7 +244,7 @@ class DashboardService {
         'SELECT COUNT(*) as count FROM attendance_sessions WHERE is_active = 1'
       );
 
-      // Total check-ins
+      // Total check-ins (REAL activity from database)
       const totalCheckIns = await db.get(
         'SELECT COUNT(*) as count FROM attendance_records'
       );
@@ -287,6 +287,53 @@ class DashboardService {
       };
     } catch (error) {
       logger.error('Error getting attendance overview:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user's QR code for access card
+   */
+  async getUserQRCode(coreUserId: string): Promise<any> {
+    try {
+      // Get core user data
+      const user = await db.get(
+        'SELECT id, email, full_name, phone FROM core_users WHERE id = ?',
+        [coreUserId]
+      );
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Get linked profile data to get UUID
+      const linkedData = await userDataLinkService.getLinkedData(coreUserId);
+      
+      if (linkedData.length === 0) {
+        throw new Error('User has not registered with any form');
+      }
+
+      const link = linkedData[0];
+      const userUuid = link.data?.uuid;
+
+      if (!userUuid) {
+        throw new Error('User UUID not found');
+      }
+
+      // Generate QR code
+      const qrResult = await QRService.generateSecureQR(userUuid, link.tableName);
+
+      return {
+        userId: user.id,
+        fullName: user.full_name || user.email,
+        email: user.email,
+        phone: user.phone,
+        uuid: userUuid,
+        qrImage: qrResult.qrImage,
+        qrData: qrResult.qrData
+      };
+    } catch (error) {
+      logger.error('Error getting user QR code:', error);
       throw error;
     }
   }

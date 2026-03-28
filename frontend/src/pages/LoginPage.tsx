@@ -49,7 +49,7 @@ export function LoginPage() {
 
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Username or Email
               </label>
               <input
                 id="username"
@@ -57,7 +57,7 @@ export function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald focus:border-transparent"
-                placeholder="Enter your username"
+                placeholder="Enter username or email"
                 required
               />
             </div>
@@ -106,7 +106,8 @@ export function LoginPage() {
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-600 mb-2">Demo Credentials:</p>
             <div className="text-xs text-gray-500 space-y-1">
-              <div>Admin: admin / admin123</div>
+              <div>Core Admin: admin@degas.com / admin123</div>
+              <div>Old Admin: admin / admin123</div>
               <div>Guard: guard / guard123</div>
             </div>
           </div>

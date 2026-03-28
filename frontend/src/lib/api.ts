@@ -127,18 +127,24 @@ api.interceptors.response.use(
     if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // If it's a JWT signature error, clear tokens immediately
+      // If it's a JWT signature error or invalid token, clear everything and redirect
       if (error.response?.data?.error?.includes('invalid signature') || 
-          error.response?.data?.error?.includes('Invalid or expired token')) {
-        console.log('🔄 Invalid JWT signature detected, clearing tokens...');
+          error.response?.data?.error?.includes('Invalid or expired token') ||
+          error.response?.data?.error?.includes('Access token required')) {
+        console.log('🔄 Auth error detected, clearing tokens and redirecting...');
         localStorage.removeItem('degas_token');
         localStorage.removeItem('degas_refresh_token');
         localStorage.removeItem('degas_admin');
-        window.location.href = '/login';
+        localStorage.removeItem('degas_core_token');
+        
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
 
-      // Try to refresh token
+      // Try to refresh token (only for old admin auth)
       const refreshToken = localStorage.getItem('degas_refresh_token');
       if (refreshToken) {
         try {
@@ -157,6 +163,7 @@ api.interceptors.response.use(
           localStorage.removeItem('degas_token');
           localStorage.removeItem('degas_refresh_token');
           localStorage.removeItem('degas_admin');
+          localStorage.removeItem('degas_core_token');
           window.location.href = '/login';
           return Promise.reject(refreshError);
         }
@@ -165,7 +172,12 @@ api.interceptors.response.use(
         localStorage.removeItem('degas_token');
         localStorage.removeItem('degas_refresh_token');
         localStorage.removeItem('degas_admin');
-        window.location.href = '/login';
+        localStorage.removeItem('degas_core_token');
+        
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
 

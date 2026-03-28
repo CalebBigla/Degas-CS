@@ -1,5 +1,6 @@
 ﻿import { db } from '../config/database';
 import logger from '../config/logger';
+import DynamicTableService from './dynamicTableService';
 
 export interface FormField {
   id?: string;
@@ -125,9 +126,28 @@ class FormService {
       );
 
       if (formData.fields && formData.fields.length > 0) {
-        for (const field of formData.fields) {
-          await this.createFormField(formId, field);
+        for (let index = 0; index < formData.fields.length; index++) {
+          await this.createFormField(formId, formData.fields[index], index + 1);
         }
+      }
+
+      // CREATE DYNAMIC TABLE FOR THIS FORM
+      // This ensures the target_table is created in the database
+      try {
+        const tableExists = await DynamicTableService.tableExists(formData.target_table);
+        if (!tableExists) {
+          await DynamicTableService.createDynamicTable(
+            formData.target_table,
+            formData.fields || []
+          );
+          logger.info(`✅ Dynamic table created for form: ${formData.form_name} -> ${formData.target_table}`);
+        } else {
+          logger.info(`ℹ️  Table already exists: ${formData.target_table}`);
+        }
+      } catch (tableCreationError: any) {
+        logger.error(`⚠️  Warning: Could not create table ${formData.target_table}:`, tableCreationError.message);
+        // Don't throw - form can still be created even if table creation fails
+        // User might want to create the table manually or it already exists
       }
 
       const createdForm = await this.getFormById(formId);
@@ -179,8 +199,8 @@ class FormService {
       if (formData.fields) {
         await db.run('DELETE FROM form_fields WHERE form_id = ?', [formId]);
         
-        for (const field of formData.fields) {
-          await this.createFormField(formId, field);
+        for (let index = 0; index < formData.fields.length; index++) {
+          await this.createFormField(formId, formData.fields[index], index + 1);
         }
       }
 
@@ -204,7 +224,7 @@ class FormService {
     }
   }
 
-  private async createFormField(formId: string, field: FormField): Promise<void> {
+  private async createFormField(formId: string, field: FormField, orderIndex: number): Promise<void> {
     const fieldId = this.generateId();
     const now = new Date().toISOString();
 
@@ -223,7 +243,7 @@ class FormService {
         field.is_required ? 1 : 0,
         field.is_email_field ? 1 : 0,
         field.is_password_field ? 1 : 0,
-        field.field_order,
+        orderIndex,
         field.options || null,
         field.placeholder || null,
         now

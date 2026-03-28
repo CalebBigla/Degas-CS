@@ -2,8 +2,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { UserDashboardPage } from './pages/UserDashboardPage';
 import { TablesPage } from './pages/TablesPage';
 import { TableDetailPage } from './pages/TableDetailPage';
+import { FormTableDetailPage } from './pages/FormTableDetailPage';
 import { ScannerPage } from './pages/ScannerPage';
 import { AccessLogsPage } from './pages/AccessLogsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
@@ -12,10 +14,13 @@ import { RegisterPage } from './pages/RegisterPage';
 import { MemberDashboardPage } from './pages/MemberDashboardPage';
 import { AttendanceSessionsPage } from './pages/AttendanceSessionsPage';
 import { Layout } from './components/Layout';
+import { ProtectedRoute, AdminRoute, UserRoute } from './components/ProtectedRoute';
+import { UserScannerPage } from './pages/UserScannerPage';
+import { QRScannerPage } from './pages/QRScannerPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 function App() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, userRole, admin, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -30,29 +35,52 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register/:formId" element={<RegisterPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
 
+  // Determine if user is admin or regular user
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/my-dashboard" element={<MemberDashboardPage />} />
-        <Route path="/tables" element={<TablesPage />} />
-        <Route path="/tables/:tableId" element={<TableDetailPage />} />
-        <Route path="/forms" element={<FormsPage />} />
-        <Route path="/attendance" element={<AttendanceSessionsPage />} />
-        <Route path="/scanner" element={<ScannerPage />} />
-        <Route path="/access-logs" element={<AccessLogsPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Layout>
+    <>
+      {isAdmin ? (
+        // Admin Routes
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/tables" element={<TablesPage />} />
+            <Route path="/admin/tables/:tableId" element={<TableDetailPage />} />
+            <Route path="/admin/forms-tables/:formId" element={<FormTableDetailPage />} />
+            <Route path="/admin/forms" element={<FormsPage />} />
+            <Route path="/admin/attendance" element={<AttendanceSessionsPage />} />
+            <Route path="/admin/scanner" element={<ScannerPage />} />
+            <Route path="/admin/access-logs" element={<AccessLogsPage />} />
+            <Route path="/admin/analytics" element={<AnalyticsPage />} />
+            <Route path="/user/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/my-dashboard" element={<MemberDashboardPage />} />
+            <Route path="/mark-attendance" element={<UserScannerPage />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </Layout>
+      ) : (
+        // User Routes
+        <Routes>
+          <Route path="/" element={<Navigate to="/user/dashboard" replace />} />
+          <Route path="/user/dashboard" element={<UserDashboardPage />} />
+          <Route path="/user/qr-scanner" element={<QRScannerPage />} />
+          <Route path="/user/attendance-history" element={<MemberDashboardPage />} />
+          <Route path="/mark-attendance" element={<UserScannerPage />} />
+          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="/admin/*" element={<Navigate to="/user/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/user/dashboard" replace />} />
+        </Routes>
+      )}
+    </>
   );
 }
 

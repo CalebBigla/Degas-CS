@@ -174,14 +174,23 @@ export const initializeDatabase = async (): Promise<void> => {
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        full_name TEXT,
+        phone TEXT,
         role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
         status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
         qr_token TEXT UNIQUE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`, (err) => {
-        if (err) logger.error('Error creating core_users table:', err);
-        else logger.info('Core users table ready');
+        if (err) {
+          if (err.message.includes('duplicate column')) {
+            logger.info('Core users table already has new columns');
+          } else {
+            logger.error('Error creating core_users table:', err);
+          }
+        } else {
+          logger.info('Core users table ready');
+        }
       });
 
       // Link core users to dynamic table records
@@ -238,7 +247,7 @@ export const initializeDatabase = async (): Promise<void> => {
         form_id TEXT NOT NULL,
         field_name TEXT NOT NULL,
         field_label TEXT NOT NULL,
-        field_type TEXT NOT NULL CHECK (field_type IN ('text', 'email', 'password', 'number', 'date', 'file', 'camera', 'select', 'textarea')),
+        field_type TEXT NOT NULL CHECK (field_type IN ('text', 'email', 'password', 'number', 'date', 'tel', 'file', 'camera', 'select', 'textarea')),
         is_required BOOLEAN DEFAULT 0,
         is_email_field BOOLEAN DEFAULT 0,
         is_password_field BOOLEAN DEFAULT 0,
@@ -331,74 +340,13 @@ export const initializeDatabase = async (): Promise<void> => {
       });
 
       // Create dynamic data tables
-      db.run(`CREATE TABLE IF NOT EXISTS Students (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT,
-        password TEXT,
-        fullName TEXT,
-        studentId TEXT,
-        phone TEXT,
-        dateOfBirth TEXT,
-        photoUrl TEXT,
-        uuid TEXT UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`, (err) => {
-        if (err) logger.error('Error creating Students table:', err);
-        else logger.info('Students table ready');
-      });
-
-      db.run(`CREATE TABLE IF NOT EXISTS Staff (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT,
-        password TEXT,
-        fullName TEXT,
-        staffId TEXT,
-        department TEXT,
-        position TEXT,
-        photoUrl TEXT,
-        uuid TEXT UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`, (err) => {
-        if (err) logger.error('Error creating Staff table:', err);
-        else logger.info('Staff table ready');
-      });
-
-      db.run(`CREATE TABLE IF NOT EXISTS Visitors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT,
-        password TEXT,
-        fullName TEXT,
-        visitorId TEXT,
-        company TEXT,
-        phone TEXT,
-        photoUrl TEXT,
-        uuid TEXT UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`, (err) => {
-        if (err) logger.error('Error creating Visitors table:', err);
-        else logger.info('Visitors table ready');
-      });
-
-      db.run(`CREATE TABLE IF NOT EXISTS Contractors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT,
-        password TEXT,
-        fullName TEXT,
-        contractorId TEXT,
-        companyName TEXT,
-        serviceType TEXT,
-        phone TEXT,
-        photoUrl TEXT,
-        uuid TEXT UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`, (err) => {
-        if (err) logger.error('Error creating Contractors table:', err);
-        else logger.info('Contractors table ready');
-      });
+      // REMOVED: Hardcoded tables (Students, Staff, Visitors, Contractors)
+      // REASON: All user tables are now created dynamically via form definitions
+      // When a form is created, the target_table is automatically created in the database
+      // This ensures production-ready, scalable architecture where any custom table can be created on-demand
+      
+      logger.info('ℹ️  Dynamic tables are created automatically when forms are created');
+      logger.info('ℹ️  No hardcoded tables are created - all tables are form-driven');
 
       // Create indexes for performance
       db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);

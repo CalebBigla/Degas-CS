@@ -3,6 +3,10 @@ import { body } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation';
 import CoreUserService from '../services/coreUserService';
 import logger from '../config/logger';
+import jwt from 'jsonwebtoken';
+
+const CORE_USER_JWT_SECRET = process.env.CORE_USER_JWT_SECRET || 'core-user-secret-change-in-production';
+const CORE_USER_JWT_EXPIRES_IN = process.env.CORE_USER_JWT_EXPIRES_IN || '7d';
 
 /**
  * Core Auth Controller - Handles end-user authentication
@@ -39,9 +43,23 @@ export const register = async (req: Request, res: Response) => {
 
     logger.info('✅ Core user registered successfully', { userId: user.id, email: user.email });
 
+    // Generate JWT token for auto-login
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        type: 'core_user'
+      },
+      CORE_USER_JWT_SECRET,
+      { expiresIn: CORE_USER_JWT_EXPIRES_IN } as jwt.SignOptions
+    );
+
     res.status(201).json({
       success: true,
+      message: 'User registered successfully',
       data: {
+        token, // Include token for auto-login
         user: {
           id: user.id,
           email: user.email,
@@ -49,8 +67,7 @@ export const register = async (req: Request, res: Response) => {
           status: user.status,
           qrToken: user.qrToken
         }
-      },
-      message: 'User registered successfully'
+      }
     });
   } catch (error: any) {
     logger.error('❌ Core user registration failed:', error);
@@ -58,6 +75,7 @@ export const register = async (req: Request, res: Response) => {
     if (error.message === 'Email already registered') {
       return res.status(409).json({
         success: false,
+        message: 'Email already registered',
         error: 'Email already registered'
       });
     }
@@ -65,12 +83,14 @@ export const register = async (req: Request, res: Response) => {
     if (error.message === 'Invalid email format') {
       return res.status(400).json({
         success: false,
+        message: 'Invalid email format',
         error: 'Invalid email format'
       });
     }
 
     res.status(500).json({
       success: false,
+      message: 'Registration failed',
       error: 'Registration failed',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });

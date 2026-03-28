@@ -102,12 +102,20 @@ class FormController {
         });
       }
 
-      // Validate target table is whitelisted
-      const allowedTables = ['Staff', 'Students', 'Visitors', 'Contractors'];
-      if (!allowedTables.includes(formData.target_table)) {
+      // Validate target table name format
+      // Table names must be alphanumeric with underscores only (no spaces)
+      if (!formData.target_table || formData.target_table.trim() === '') {
         return res.status(400).json({
           success: false,
-          message: `Target table must be one of: ${allowedTables.join(', ')}`
+          message: 'Target table name is required'
+        });
+      }
+
+      // Validate table name format (alphanumeric and underscores only)
+      if (!/^[a-zA-Z0-9_]+$/.test(formData.target_table)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Table name must contain only letters, numbers, and underscores (no spaces or special characters)'
         });
       }
 
@@ -175,14 +183,11 @@ class FormController {
       }
 
       // Validate target table if provided
-      if (formData.target_table) {
-        const allowedTables = ['Staff', 'Students', 'Visitors', 'Contractors'];
-        if (!allowedTables.includes(formData.target_table)) {
-          return res.status(400).json({
-            success: false,
-            message: `Target table must be one of: ${allowedTables.join(', ')}`
-          });
-        }
+      if (formData.target_table && formData.target_table.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Target table name cannot be empty'
+        });
       }
 
       // Validate fields if provided

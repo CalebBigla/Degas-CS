@@ -1,5 +1,6 @@
 import express from 'express';
 import formController from '../controllers/formController';
+import formsTablesController from '../controllers/formsTablesController';
 import { authenticateCoreUser, requireCoreRole } from '../middleware/coreAuth';
 
 const router = express.Router();
@@ -13,5 +14,10 @@ router.get('/admin/forms/:id', authenticateCoreUser, requireCoreRole(['admin', '
 router.post('/admin/forms', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formController.createForm.bind(formController));
 router.put('/admin/forms/:id', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formController.updateForm.bind(formController));
 router.delete('/admin/forms/:id', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formController.deleteForm.bind(formController));
+
+// Form tables endpoints - lists forms as virtual tables
+router.get('/admin/forms-tables', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.getFormTables);
+router.get('/admin/forms-tables/:formId/users', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.getFormTableUsers);
+router.delete('/admin/forms-tables/:formId/users/:userId', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.deleteFormTableUser);
 
 export default router;

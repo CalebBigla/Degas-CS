@@ -19,4 +19,8 @@ router.get('/admin/sessions/:id/absentees', authenticateCoreUser, requireCoreRol
 router.post('/attendance/scan', authenticateCoreUser, attendanceController.scanQR.bind(attendanceController));
 router.get('/attendance/history', authenticateCoreUser, attendanceController.getUserAttendanceHistory.bind(attendanceController));
 
+// User self-check-in endpoints
+router.post('/user/attendance/checkin', authenticateCoreUser, attendanceController.userCheckIn.bind(attendanceController));
+router.get('/user/attendance/recent', authenticateCoreUser, attendanceController.getUserRecentAttendance.bind(attendanceController));
+
 export default router;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, MoreHorizontal, Trash2, Users as UsersIcon, FolderOpen, Plus } from 'lucide-react';
+import { Search, Upload, MoreHorizontal, Trash2, Users as UsersIcon, FolderOpen, Plus, Edit2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { BulkUploadModal } from '../components/users/BulkUploadModal';
@@ -12,9 +12,15 @@ interface Table {
   id: string;
   name: string;
   description?: string;
-  schema: any[];
-  createdAt: string;
-  updatedAt: string;
+  schema?: any[];
+  target_table?: string;
+  type?: 'form' | 'legacy';
+  is_active?: boolean;
+  record_count?: number;
+  fields?: any[];
+  createdAt?: string;
+  updatedAt?: string;
+  error?: string;
   userCount?: number;
 }
 
@@ -26,11 +32,11 @@ export function TablesPage() {
   const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
   const [actionMenuTable, setActionMenuTable] = useState<string | null>(null);
 
-  // Fetch tables
+  // Fetch tables (form-created tables)
   const { data: tables = [], isLoading } = useQuery<Table[]>(
     'tables',
     async () => {
-      const response = await api.get('/tables');
+      const response = await api.get('/admin/forms-tables');
       return Array.isArray(response?.data?.data) ? response.data.data : [];
     },
     {
@@ -84,8 +90,12 @@ export function TablesPage() {
     table.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleViewTable = (tableId: string) => {
-    navigate(`/tables/${tableId}`);
+  const handleViewTable = (table: Table) => {
+    if (table.type === 'form') {
+      navigate(`/admin/forms-tables/${table.id}`);
+    } else {
+      navigate(`/admin/tables/${table.id}`);
+    }
   };
 
   const handleDeleteTable = async (tableId: string) => {
@@ -160,7 +170,7 @@ export function TablesPage() {
             <div
               key={table.id}
               className="card p-6 cursor-pointer group"
-              onClick={() => handleViewTable(table.id)}
+              onClick={() => handleViewTable(table)}
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
@@ -168,12 +178,23 @@ export function TablesPage() {
                     <div className="p-2 bg-emerald/10 rounded-lg group-hover:bg-emerald/20 transition-colors">
                       <FolderOpen className="h-5 w-5 text-emerald" />
                     </div>
-                    <h3 className="text-lg font-semibold text-charcoal group-hover:text-emerald transition-colors">
-                      {table.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-charcoal group-hover:text-emerald transition-colors">
+                        {table.name}
+                      </h3>
+                      {table.type === 'form' && (
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">Form</span>
+                      )}
+                      {table.is_active === false && (
+                        <span className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">Inactive</span>
+                      )}
+                    </div>
                   </div>
                   {table.description && (
                     <p className="text-sm text-gray-600 ml-11">{table.description}</p>
+                  )}
+                  {table.error && (
+                    <p className="text-sm text-red-600 ml-11 mt-1">⚠️ {table.error}</p>
                   )}
                 </div>
                 <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -188,19 +209,21 @@ export function TablesPage() {
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-10 animate-fade-in">
                       <div className="py-1">
                         <button
-                          onClick={() => handleViewTable(table.id)}
+                          onClick={() => handleViewTable(table)}
                           className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                         >
                           <UsersIcon className="h-4 w-4" />
-                          <span>View Users</span>
+                          <span>View Records</span>
                         </button>
-                        <button
-                          onClick={() => handleDeleteTable(table.id)}
-                          className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-crimson hover:bg-crimson/5 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span>Delete Table</span>
-                        </button>
+                        {table.type === 'form' ? (
+                          <button
+                            onClick={() => handleViewTable(table)}
+                            className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            <span>Edit Form</span>
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -210,8 +233,8 @@ export function TablesPage() {
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center space-x-2 text-gray-600">
                   <UsersIcon className="h-4 w-4" />
-                  <span className="font-medium">{table.userCount || 0}</span>
-                  <span>users</span>
+                  <span className="font-medium">{table.record_count !== undefined ? table.record_count : table.userCount || 0}</span>
+                  <span>{table.record_count !== undefined ? 'records' : 'users'}</span>
                 </div>
               </div>
 

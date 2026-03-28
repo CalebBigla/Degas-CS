@@ -6,6 +6,7 @@ const router = express.Router();
 
 // User endpoints - require core user authentication
 router.get('/user/dashboard', authenticateCoreUser, dashboardController.getUserDashboard.bind(dashboardController));
+router.get('/user/qr-code', authenticateCoreUser, dashboardController.getUserQRCode.bind(dashboardController));
 
 // Admin endpoints - require core user authentication (admin role)
 router.get('/admin/core-users', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), dashboardController.getAllCoreUsers.bind(dashboardController));

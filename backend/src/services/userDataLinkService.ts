@@ -22,14 +22,39 @@ export interface LinkedData {
   photoUrl?: string;
 }
 
-// Whitelist of allowed table names (security measure)
-const ALLOWED_TABLES = ['dynamic_users', 'Students', 'Staff', 'Visitors', 'Contractors'];
+// PRODUCTION NOTE: No hardcoded table whitelist
+// All tables are validated against the database schema
+// This supports unlimited form-driven dynamic tables
+// Table validation happens in validateTableName() function below
 
 /**
  * Validate table name against whitelist
+ * Now checks if table exists in database instead of hardcoded whitelist
  */
-function validateTableName(tableName: string): boolean {
-  return ALLOWED_TABLES.includes(tableName);
+async function validateTableName(tableName: string): Promise<boolean> {
+  // Allow any table that exists in the database
+  // This supports dynamic form creation
+  const db = getDatabase();
+  try {
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    if (dbType === 'sqlite') {
+      const table = await db.get(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        [tableName]
+      );
+      return !!table;
+    } else {
+      // PostgreSQL
+      const table = await db.get(
+        `SELECT tablename FROM pg_tables WHERE tablename = $1`,
+        [tableName]
+      );
+      return !!table;
+    }
+  } catch (error) {
+    logger.error('Error validating table name:', error);
+    return false;
+  }
 }
 
 export class UserDataLinkService {
@@ -46,7 +71,8 @@ export class UserDataLinkService {
 
     try {
       // Validate table name
-      if (!validateTableName(tableName)) {
+      const isValid = await validateTableName(tableName);
+      if (!isValid) {
         throw new Error(`Invalid table name: ${tableName}`);
       }
 
@@ -213,7 +239,8 @@ export class UserDataLinkService {
     const db = getDatabase();
 
     try {
-      if (!validateTableName(tableName)) {
+      const isValid = await validateTableName(tableName);
+      if (!isValid) {
         throw new Error(`Invalid table name: ${tableName}`);
       }
 
@@ -230,20 +257,29 @@ export class UserDataLinkService {
   }
 
   /**
-   * Add a table to the whitelist (admin function)
+   * Get all dynamic tables (all tables except system tables)
+   * Used to list available user tables
    */
-  static addAllowedTable(tableName: string): void {
-    if (!ALLOWED_TABLES.includes(tableName)) {
-      ALLOWED_TABLES.push(tableName);
-      logger.info('✅ Table added to whitelist', { tableName });
+  static async getDynamicTables(): Promise<string[]> {
+    const db = getDatabase();
+    try {
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
+      if (dbType === 'sqlite') {
+        const tables = await db.all(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('admins', 'tables', 'dynamic_users', 'access_logs', 'qr_codes', 'core_users', 'user_data_links', 'form_definitions', 'form_fields', 'attendance_sessions', 'attendance_records', 'attendance_audit_logs', 'attendance_student_rosters')`
+        );
+        return tables?.map((t: any) => t.name) || [];
+      } else {
+        // PostgreSQL
+        const tables = await db.all(
+          `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('admins', 'tables', 'dynamic_users', 'access_logs', 'qr_codes', 'core_users', 'user_data_links', 'form_definitions', 'form_fields', 'attendance_sessions', 'attendance_records', 'attendance_audit_logs', 'attendance_student_rosters')`
+        );
+        return tables?.map((t: any) => t.tablename) || [];
+      }
+    } catch (error) {
+      logger.error('❌ Failed to get dynamic tables:', error);
+      return [];
     }
-  }
-
-  /**
-   * Get list of allowed tables
-   */
-  static getAllowedTables(): string[] {
-    return [...ALLOWED_TABLES];
   }
 }
 

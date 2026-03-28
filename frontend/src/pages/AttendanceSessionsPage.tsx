@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, QrCode, Users, Calendar, Clock } from 'lucide-react';
 import api from '../lib/api';
+import { CreateSessionModal } from '../components/forms/CreateSessionModal';
 
 interface Session {
   id: string;
@@ -18,6 +19,7 @@ export function AttendanceSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState<string | null>(null);
   const [qrImage, setQrImage] = useState<string>('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     loadSessions();
@@ -47,7 +49,8 @@ export function AttendanceSessionsPage() {
   const viewAttendance = async (sessionId: string) => {
     try {
       const response = await api.get(`/admin/sessions/${sessionId}/attendance`);
-      alert(`Attendance: ${response.data.data.attended}/${response.data.data.totalUsers} (${response.data.data.attendanceRate}%)`);
+      const stats = response.data.data.stats;
+      alert(`Attendance: ${stats.attended}/${stats.totalUsers} (${stats.attendanceRate}%)`);
     } catch (error) {
       console.error('Failed to get attendance:', error);
     }
@@ -64,7 +67,10 @@ export function AttendanceSessionsPage() {
           <h1 className="text-3xl font-bold text-white">Attendance Sessions</h1>
           <p className="text-gray-400 mt-1">Create and manage attendance sessions</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+        <button 
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+        >
           <Plus size={20} />
           Create Session
         </button>
@@ -140,6 +146,13 @@ export function AttendanceSessionsPage() {
           </div>
         </div>
       )}
+
+      {/* Create Session Modal */}
+      <CreateSessionModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={loadSessions}
+      />
     </div>
   );
 }

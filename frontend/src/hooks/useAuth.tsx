@@ -4,57 +4,147 @@ import { Admin, LoginRequest, LoginResponse, ApiResponse } from '@gatekeeper/sha
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
+export interface User {
+  id: string;
+  email: string;
+  role: 'user' | 'admin' | 'super_admin';
+}
+
 interface AuthContextType {
   admin: Admin | null;
+  user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  userRole: 'user' | 'admin' | 'super_admin' | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  restoreSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSessionRestored, setIsSessionRestored] = useState(false);
   const queryClient = useQueryClient();
 
-  // Check for existing auth on mount
+  // Restore session on mount
   useEffect(() => {
-    // Clean up old localStorage keys from previous versions
-    const oldKeys = ['gatekeeper_token', 'gatekeeper_refresh_token', 'gatekeeper_admin'];
-    oldKeys.forEach(key => {
-      if (localStorage.getItem(key)) {
-        localStorage.removeItem(key);
-      }
-    });
+    const restoreSession = async () => {
+      // Clean up old localStorage keys from previous versions
+      const oldKeys = ['gatekeeper_token', 'gatekeeper_refresh_token', 'gatekeeper_admin'];
+      oldKeys.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+        }
+      });
 
-    const token = localStorage.getItem('degas_token');
-    const storedAdmin = localStorage.getItem('degas_admin');
-    
-    if (token && storedAdmin) {
-      try {
-        const adminData = JSON.parse(storedAdmin);
-        setAdmin(adminData);
-        setIsAuthenticated(true);
-      } catch (error) {
-        // Invalid stored data, clear it
-        localStorage.removeItem('degas_token');
-        localStorage.removeItem('degas_refresh_token');
-        localStorage.removeItem('degas_admin');
+      const token = localStorage.getItem('degas_token');
+      const storedAdmin = localStorage.getItem('degas_admin');
+      const storedUser = localStorage.getItem('degas_user');
+      
+      if (token) {
+        try {
+          // Restore admin session if available
+          if (storedAdmin) {
+            const adminData = JSON.parse(storedAdmin);
+            setAdmin(adminData);
+            setIsAuthenticated(true);
+            console.log('✅ Admin session restored');
+          }
+          // Restore user session if available
+          else if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+            setIsAuthenticated(true);
+            console.log('✅ User session restored');
+          }
+        } catch (error) {
+          console.error('❌ Failed to restore session:', error);
+          // Invalid stored data, clear it
+          localStorage.removeItem('degas_token');
+          localStorage.removeItem('degas_refresh_token');
+          localStorage.removeItem('degas_admin');
+          localStorage.removeItem('degas_user');
+          localStorage.removeItem('degas_core_token');
+        }
       }
-    }
+      
+      setIsSessionRestored(true);
+    };
+
+    restoreSession();
   }, []);
 
-  const loginMutation = useMutation<ApiResponse<LoginResponse>, Error, LoginRequest>(
+  const loginMutation = useMutation<any, Error, { username: string; password: string }>(
     async (credentials) => {
-      const response = await api.post('/auth/login', credentials);
-      return response.data;
+      // Detect if logging in with email (core user) or username (old admin)
+      const isEmail = credentials.username.includes('@');
+      
+      console.log('🔐 Login attempt:', { username: credentials.username, isEmail });
+      
+      if (isEmail) {
+        // Core user login
+        console.log('🔐 Using core user login endpoint');
+        const response = await api.post('/core-auth/login', {
+          email: credentials.username,
+          password: credentials.password
+        });
+        console.log('🔐 Core login response:', response.data);
+        return { type: 'core', data: response.data };
+      } else {
+        // Old admin login
+        console.log('🔐 Using old admin login endpoint');
+        const response = await api.post('/auth/login', credentials);
+        console.log('🔐 Admin login response:', response.data);
+        return { type: 'admin', data: response.data };
+      }
     },
     {
-      onSuccess: (data) => {
-        if (data.success && data.data) {
-          const { token, refreshToken, admin: adminData } = data.data;
+      onSuccess: (result) => {
+        if (result.type === 'core' && result.data.success && result.data.data) {
+          const { token, user } = result.data.data;
+          
+          // Store core user token and data
+          localStorage.setItem('degas_core_token', token);
+          localStorage.setItem('degas_token', token); // Also store as main token
+          
+          // Determine if user is admin or regular user
+          if (user.role === 'admin' || user.role === 'super_admin') {
+            localStorage.setItem('degas_admin', JSON.stringify({
+              id: user.id,
+              username: user.email,
+              email: user.email,
+              role: user.role
+            }));
+            
+            setAdmin({
+              id: user.id,
+              username: user.email,
+              email: user.email,
+              role: user.role
+            } as Admin);
+          } else {
+            localStorage.setItem('degas_user', JSON.stringify({
+              id: user.id,
+              email: user.email,
+              role: user.role
+            }));
+            
+            setUser({
+              id: user.id,
+              email: user.email,
+              role: user.role
+            });
+          }
+          
+          setIsAuthenticated(true);
+          console.log('✅ Login successful, role:', user.role);
+          toast.success('Login successful');
+        } else if (result.type === 'admin' && result.data.success && result.data.data) {
+          const { token, refreshToken, admin: adminData } = result.data.data;
           
           // Store tokens and admin data
           localStorage.setItem('degas_token', token);
@@ -65,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAdmin(adminData as Admin);
           setIsAuthenticated(true);
           
+          console.log('✅ Admin login successful');
           toast.success('Login successful');
         }
       },
@@ -80,25 +171,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('degas_token');
     localStorage.removeItem('degas_refresh_token');
     localStorage.removeItem('degas_admin');
+    localStorage.removeItem('degas_user');
+    localStorage.removeItem('degas_core_token');
     
     // Update state
     setAdmin(null);
+    setUser(null);
     setIsAuthenticated(false);
     
     // Clear query cache
     queryClient.clear();
     
+    console.log('🚪 User logged out');
     toast.success('Logged out successfully');
   };
 
+  const restoreSession = async () => {
+    // This allows external code to restore the session
+    const token = localStorage.getItem('degas_token');
+    const storedAdmin = localStorage.getItem('degas_admin');
+    const storedUser = localStorage.getItem('degas_user');
+    
+    if (token) {
+      if (storedAdmin) {
+        setAdmin(JSON.parse(storedAdmin));
+        setIsAuthenticated(true);
+      } else if (storedUser) {
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+      }
+    }
+  };
+
+  const userRole = admin?.role || user?.role || null;
+
   const value: AuthContextType = {
     admin,
-    isAuthenticated,
-    isLoading: loginMutation.isLoading,
+    user,
+    isAuthenticated: isAuthenticated && isSessionRestored,
+    isLoading: loginMutation.isLoading || !isSessionRestored,
+    userRole,
     login: async (username: string, password: string) => {
       await loginMutation.mutateAsync({ username, password });
     },
     logout,
+    restoreSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
