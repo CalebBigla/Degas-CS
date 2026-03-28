@@ -1,8 +1,8 @@
 /**
  * Check and populate database with test data
  */
-import { getDatabase } from './src/config/database';
-import logger from './src/config/logger';
+import { getDatabase } from '../config/database';
+import logger from '../config/logger';
 import crypto from 'crypto';
 
 async function checkAndPopulateDatabase() {
