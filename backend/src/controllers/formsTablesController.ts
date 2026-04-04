@@ -17,13 +17,10 @@ export async function getFormTables(req: Request, res: Response) {
     // Get old forms from form_definitions
     const oldForms = await formService.getAllForms();
     
-    // Get new forms from forms table
-    let newForms;
-    if (dbType === 'postgresql') {
-      newForms = await db.all('SELECT * FROM forms ORDER BY "createdAt" DESC');
-    } else {
-      newForms = await db.all('SELECT * FROM forms ORDER BY createdAt DESC');
-    }
+    // Get new forms from forms table - use ? placeholder, adapter will convert
+    const newForms = await db.all('SELECT * FROM forms ORDER BY "createdAt" DESC');
+    
+    logger.info(`📊 Found ${oldForms.length} old forms and ${newForms.length} new forms`);
     
     // Map old forms to table format
     const oldFormTables = await Promise.all(
@@ -35,7 +32,7 @@ export async function getFormTables(req: Request, res: Response) {
             []
           );
           
-          const recordCount = result?.count || 0;
+          const recordCount = parseInt(result?.count || 0);
 
           return {
             id: form.id,
@@ -73,19 +70,11 @@ export async function getFormTables(req: Request, res: Response) {
     const newFormTables = await Promise.all(
       newForms.map(async (form: any) => {
         try {
-          // Count users registered with this form
-          let result;
-          if (dbType === 'postgresql') {
-            result = await db.get(
-              `SELECT COUNT(*) as count FROM users WHERE "formId" = $1`,
-              [form.id]
-            );
-          } else {
-            result = await db.get(
-              `SELECT COUNT(*) as count FROM users WHERE formId = ?`,
-              [form.id]
-            );
-          }
+          // Count users registered with this form - use ? placeholder
+          const result = await db.get(
+            `SELECT COUNT(*) as count FROM users WHERE "formId" = ?`,
+            [form.id]
+          );
           
           const recordCount = parseInt(result?.count || 0);
 
@@ -95,7 +84,7 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive || form["isActive"],
+            is_active: form.isActive !== undefined ? form.isActive : form["isActive"],
             record_count: recordCount,
             fields: [
               { field_name: 'name', field_label: 'Name', field_type: 'text' },
@@ -109,7 +98,10 @@ export async function getFormTables(req: Request, res: Response) {
             qrCode: form.qrCode || form["qrCode"]
           };
         } catch (error: any) {
-          logger.warn(`Could not count users for form ${form.name}:`, error.message);
+          logger.error(`❌ Error counting users for form ${form.name}:`, {
+            error: error.message,
+            formId: form.id
+          });
           
           return {
             id: form.id,
@@ -117,7 +109,7 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive || form["isActive"],
+            is_active: form.isActive !== undefined ? form.isActive : form["isActive"],
             record_count: 0,
             fields: [],
             created_at: form.createdAt || form["createdAt"],
@@ -133,16 +125,21 @@ export async function getFormTables(req: Request, res: Response) {
     // Combine both lists
     const allFormTables = [...newFormTables, ...oldFormTables];
 
+    logger.info(`✅ Returning ${allFormTables.length} total forms/tables`);
+
     res.json({
       success: true,
       data: allFormTables
     });
-  } catch (error) {
-    logger.error('Error getting form tables:', error);
+  } catch (error: any) {
+    logger.error('❌ Error getting form tables:', {
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to get form tables',
-      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 }
@@ -157,33 +154,25 @@ export async function getFormTableUsers(req: Request, res: Response) {
     const { formId } = req.params;
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
 
-    // First check if it's a new form (from forms table)
-    const newForm = await db.get('SELECT * FROM forms WHERE id = $1', [formId]);
+    logger.info(`📊 Fetching users for formId: ${formId}`);
+
+    // First check if it's a new form (from forms table) - use ? placeholder
+    const newForm = await db.get('SELECT * FROM forms WHERE id = ?', [formId]);
     
     if (newForm) {
       // It's a fixed schema form - get users from users table
-      logger.info(`📊 Fetching users for fixed schema form: ${newForm.name}`);
+      logger.info(`📊 Found fixed schema form: ${newForm.name}`);
       
-      let users;
-      if (dbType === 'postgresql') {
-        users = await db.all(
-          `SELECT id, name, phone, email, address, scanned, "scannedAt", "createdAt", "updatedAt"
-           FROM users
-           WHERE "formId" = $1
-           ORDER BY "createdAt" DESC`,
-          [formId]
-        );
-      } else {
-        users = await db.all(
-          `SELECT id, name, phone, email, address, scanned, scannedAt, createdAt, updatedAt
-           FROM users
-           WHERE formId = ?
-           ORDER BY createdAt DESC`,
-          [formId]
-        );
-      }
+      // Use ? placeholder, adapter will convert
+      const users = await db.all(
+        `SELECT id, name, phone, email, address, scanned, "scannedAt", "createdAt", "updatedAt"
+         FROM users
+         WHERE "formId" = ?
+         ORDER BY "createdAt" DESC`,
+        [formId]
+      );
       
-      logger.info(`📊 Found ${users.length} users for form ${newForm.name}`);
+      logger.info(`✅ Found ${users.length} users for form ${newForm.name}`);
       
       // Return in the expected format
       return res.json({
@@ -208,19 +197,20 @@ export async function getFormTableUsers(req: Request, res: Response) {
     // If not found in new forms, check old form_definitions
     const form = await formService.getFormById(formId);
     if (!form) {
+      logger.warn(`⚠️ Form not found: ${formId}`);
       return res.status(404).json({
         success: false,
         message: 'Form not found'
       });
     }
 
-    logger.info(`📊 Fetching users from table: ${form.target_table}`);
+    logger.info(`📊 Found old form definition: ${form.form_name}, table: ${form.target_table}`);
 
     // Check if table exists
     let tableExists;
     if (dbType === 'postgresql') {
       tableExists = await db.get(
-        `SELECT tablename FROM pg_tables WHERE tablename = $1`,
+        `SELECT tablename FROM pg_tables WHERE tablename = ?`,
         [form.target_table]
       );
     } else {
@@ -250,7 +240,7 @@ export async function getFormTableUsers(req: Request, res: Response) {
       `SELECT * FROM ${form.target_table} ORDER BY created_at DESC`
     );
 
-    logger.info(`📊 Found ${records.length} records in ${form.target_table}`);
+    logger.info(`✅ Found ${records.length} records in ${form.target_table}`);
 
     // Parse form fields to get field names
     let formFields = [];
@@ -267,8 +257,6 @@ export async function getFormTableUsers(req: Request, res: Response) {
       }
     }
 
-    logger.info(`📊 Returning ${records.length} records with ${formFields.length} fields`);
-
     res.json({
       success: true,
       data: {
@@ -279,12 +267,16 @@ export async function getFormTableUsers(req: Request, res: Response) {
         records: records
       }
     });
-  } catch (error) {
-    logger.error('Error getting form table users:', error);
+  } catch (error: any) {
+    logger.error('❌ Error getting form table users:', {
+      error: error.message,
+      stack: error.stack,
+      formId: req.params.formId
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to get form table users',
-      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 }
