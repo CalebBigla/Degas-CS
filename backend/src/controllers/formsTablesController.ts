@@ -12,11 +12,18 @@ import logger from '../config/logger';
  */
 export async function getFormTables(req: Request, res: Response) {
   try {
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
     // Get old forms from form_definitions
     const oldForms = await formService.getAllForms();
     
     // Get new forms from forms table
-    const newForms = await db.all('SELECT * FROM forms ORDER BY createdAt DESC');
+    let newForms;
+    if (dbType === 'postgresql') {
+      newForms = await db.all('SELECT * FROM forms ORDER BY "createdAt" DESC');
+    } else {
+      newForms = await db.all('SELECT * FROM forms ORDER BY createdAt DESC');
+    }
     
     // Map old forms to table format
     const oldFormTables = await Promise.all(
@@ -67,12 +74,20 @@ export async function getFormTables(req: Request, res: Response) {
       newForms.map(async (form: any) => {
         try {
           // Count users registered with this form
-          const result = await db.get(
-            `SELECT COUNT(*) as count FROM users WHERE formId = ?`,
-            [form.id]
-          );
+          let result;
+          if (dbType === 'postgresql') {
+            result = await db.get(
+              `SELECT COUNT(*) as count FROM users WHERE "formId" = $1`,
+              [form.id]
+            );
+          } else {
+            result = await db.get(
+              `SELECT COUNT(*) as count FROM users WHERE formId = ?`,
+              [form.id]
+            );
+          }
           
-          const recordCount = result?.count || 0;
+          const recordCount = parseInt(result?.count || 0);
 
           return {
             id: form.id,
@@ -80,19 +95,18 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive,
+            is_active: form.isActive || form["isActive"],
             record_count: recordCount,
             fields: [
               { field_name: 'name', field_label: 'Name', field_type: 'text' },
               { field_name: 'phone', field_label: 'Phone', field_type: 'tel' },
               { field_name: 'email', field_label: 'Email', field_type: 'email' },
               { field_name: 'address', field_label: 'Address', field_type: 'text' }
-              // Removed scanned field from display
             ],
-            created_at: form.createdAt,
-            updated_at: form.updatedAt,
+            created_at: form.createdAt || form["createdAt"],
+            updated_at: form.updatedAt || form["updatedAt"],
             link: form.link,
-            qrCode: form.qrCode
+            qrCode: form.qrCode || form["qrCode"]
           };
         } catch (error: any) {
           logger.warn(`Could not count users for form ${form.name}:`, error.message);
@@ -103,11 +117,13 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive,
+            is_active: form.isActive || form["isActive"],
             record_count: 0,
             fields: [],
-            created_at: form.createdAt,
-            updated_at: form.updatedAt,
+            created_at: form.createdAt || form["createdAt"],
+            updated_at: form.updatedAt || form["updatedAt"],
+            link: form.link,
+            qrCode: form.qrCode || form["qrCode"],
             error: 'Could not count users'
           };
         }
@@ -125,7 +141,8 @@ export async function getFormTables(req: Request, res: Response) {
     logger.error('Error getting form tables:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get form tables'
+      message: 'Failed to get form tables',
+      error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
 }
@@ -138,25 +155,37 @@ export async function getFormTables(req: Request, res: Response) {
 export async function getFormTableUsers(req: Request, res: Response) {
   try {
     const { formId } = req.params;
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
 
     // First check if it's a new form (from forms table)
-    const newForm = await db.get('SELECT * FROM forms WHERE id = ?', [formId]);
+    const newForm = await db.get('SELECT * FROM forms WHERE id = $1', [formId]);
     
     if (newForm) {
       // It's a fixed schema form - get users from users table
       logger.info(`📊 Fetching users for fixed schema form: ${newForm.name}`);
       
-      const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, scannedAt, createdAt, updatedAt
-         FROM users
-         WHERE formId = ?
-         ORDER BY createdAt DESC`,
-        [formId]
-      );
+      let users;
+      if (dbType === 'postgresql') {
+        users = await db.all(
+          `SELECT id, name, phone, email, address, scanned, "scannedAt", "createdAt", "updatedAt"
+           FROM users
+           WHERE "formId" = $1
+           ORDER BY "createdAt" DESC`,
+          [formId]
+        );
+      } else {
+        users = await db.all(
+          `SELECT id, name, phone, email, address, scanned, scannedAt, createdAt, updatedAt
+           FROM users
+           WHERE formId = ?
+           ORDER BY createdAt DESC`,
+          [formId]
+        );
+      }
       
       logger.info(`📊 Found ${users.length} users for form ${newForm.name}`);
       
-      // Return in the expected format - EXCLUDE scanned from display fields
+      // Return in the expected format
       return res.json({
         success: true,
         data: {
@@ -167,12 +196,11 @@ export async function getFormTableUsers(req: Request, res: Response) {
             { field_name: 'phone', field_label: 'Phone', field_type: 'tel' },
             { field_name: 'email', field_label: 'Email', field_type: 'email' },
             { field_name: 'address', field_label: 'Address', field_type: 'text' }
-            // Removed scanned field from display - still in database for logic
           ],
           total_records: users.length,
           records: users,
           link: newForm.link,
-          qrCode: newForm.qrCode
+          qrCode: newForm.qrCode || newForm["qrCode"]
         }
       });
     }
@@ -189,10 +217,18 @@ export async function getFormTableUsers(req: Request, res: Response) {
     logger.info(`📊 Fetching users from table: ${form.target_table}`);
 
     // Check if table exists
-    const tableExists = await db.get(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
-      [form.target_table]
-    );
+    let tableExists;
+    if (dbType === 'postgresql') {
+      tableExists = await db.get(
+        `SELECT tablename FROM pg_tables WHERE tablename = $1`,
+        [form.target_table]
+      );
+    } else {
+      tableExists = await db.get(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        [form.target_table]
+      );
+    }
 
     if (!tableExists) {
       logger.warn(`⚠️ Table does not exist: ${form.target_table}`);
