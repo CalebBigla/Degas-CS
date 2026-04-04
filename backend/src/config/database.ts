@@ -287,9 +287,25 @@ async function initializePostgreSQL(): Promise<void> {
     }
 
     logger.info('PostgreSQL database initialization complete');
-  } catch (error) {
-    logger.error('PostgreSQL initialization failed:', error);
-    throw error;
+  } catch (error: any) {
+    logger.error('❌ PostgreSQL initialization FAILED:', {
+      message: error?.message || String(error),
+      code: error?.code,
+      detail: error?.detail,
+      errno: error?.errno,
+      sqlState: error?.sqlState,
+      severity: error?.severity,
+      stack: error?.stack
+    });
+    
+    // Log more debugging info
+    logger.error('Connection string validation:', {
+      hasDatabase: !!process.env.DATABASE_URL,
+      dbTypeCheck: process.env.DATABASE_TYPE,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
+    throw new Error(`Failed to initialize PostgreSQL database: ${error?.message || String(error)}`);
   }
 }
 
@@ -301,20 +317,26 @@ export async function testDatabaseConnection(): Promise<void> {
     
     if (dbType === 'sqlite') {
       const result = await db.get("SELECT datetime('now') as current_time");
-      logger.info('SQLite connection successful:', {
+      logger.info('✅ SQLite connection successful:', {
         currentTime: result.current_time,
         database: 'SQLite'
       });
     } else {
       const result = await db.get("SELECT NOW() as current_time");
-      logger.info('PostgreSQL connection successful:', {
+      logger.info('✅ PostgreSQL connection successful:', {
         currentTime: result.current_time,
         database: 'PostgreSQL'
       });
     }
-  } catch (error) {
-    logger.error('Database connection failed:', error);
-    throw new Error(`Database connectivity check failed: ${error}`);
+  } catch (error: any) {
+    logger.error('❌ Database connection test FAILED:', {
+      message: error?.message || String(error),
+      code: error?.code,
+      detail: error?.detail,
+      dbType: process.env.DATABASE_TYPE || 'sqlite',
+      hasURL: !!process.env.DATABASE_URL
+    });
+    throw new Error(`Database connectivity check failed: ${error?.message || String(error)}`);
   }
 }
 

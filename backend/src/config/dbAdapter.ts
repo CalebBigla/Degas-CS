@@ -68,21 +68,29 @@ class PostgreSQLAdapter implements DatabaseAdapter {
 
   constructor(connectionString: string) {
     logger.info('🔐 Creating PostgreSQL pool with SSL configuration');
+    
+    // For production (Render), use longer timeouts for initial connection
+    const isProduction = process.env.NODE_ENV === 'production';
+    const connectionTimeoutMillis = isProduction ? 10000 : 2000; // 10s for production, 2s for dev
+    const idleTimeoutMillis = isProduction ? 60000 : 30000; // 60s for production
+    
     this.pool = new Pool({
       connectionString,
-      ssl: process.env.NODE_ENV === 'production' 
+      ssl: isProduction
         ? { rejectUnauthorized: false }
         : false,
       max: 20,  // Maximum number of clients in pool
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      idleTimeoutMillis,
+      connectionTimeoutMillis,
+      statement_timeout: isProduction ? 30000 : 5000,  // 30s for production
     });
     
     // Log pool connection events
     this.pool.on('error', (err: any) => {
       logger.error('❌ PostgreSQL pool error:', {
         message: err?.message || String(err),
-        code: err?.code
+        code: err?.code,
+        severity: err?.severity
       });
     });
     
@@ -90,34 +98,30 @@ class PostgreSQLAdapter implements DatabaseAdapter {
       logger.info('✅ PostgreSQL pool - new client connected');
     });
     
-    logger.info('✅ PostgreSQL pool created and configured');
+    logger.info('✅ PostgreSQL pool created and configured', {
+      connectionTimeout: connectionTimeoutMillis,
+      idleTimeout: idleTimeoutMillis,
+      environment: process.env.NODE_ENV || 'development'
+    });
   }
 
   async query(sql: string, params: any[] = []): Promise<any> {
-    const client = await this.pool.connect();
-    try {
-      // Convert SQLite syntax to PostgreSQL
-      const pgSql = this.convertSQLiteToPostgreSQL(sql);
-      logger.debug('PostgreSQL query:', { 
-        original: sql.substring(0, 150), 
-        converted: pgSql.substring(0, 150),
-        paramCount: params.length 
-      });
-      const result = await client.query(pgSql, params);
-      return { rows: result.rows };
-    } catch (error) {
-      logger.error('❌ PostgreSQL query error:', {
-        message: error instanceof Error ? error.message : String(error),
-        originalSQL: sql.substring(0, 150),
-        paramCount: params.length,
-        params: params.slice(0, 3),  // Log first 3 params for debugging
-        code: (error as any)?.code,
-        detail: (error as any)?.detail
-      });
-      throw error;
-    } finally {
-      client.release();
-    }
+    return this.executeWithRetry(async () => {
+      const client = await this.pool.connect();
+      try {
+        // Convert SQLite syntax to PostgreSQL
+        const pgSql = this.convertSQLiteToPostgreSQL(sql);
+        logger.debug('PostgreSQL query:', { 
+          original: sql.substring(0, 150), 
+          converted: pgSql.substring(0, 150),
+          paramCount: params.length 
+        });
+        const result = await client.query(pgSql, params);
+        return { rows: result.rows };
+      } finally {
+        client.release();
+      }
+    });
   }
 
   async get(sql: string, params: any[] = []): Promise<any> {
@@ -131,33 +135,73 @@ class PostgreSQLAdapter implements DatabaseAdapter {
   }
 
   async run(sql: string, params: any[] = []): Promise<{ lastID?: number; changes?: number }> {
-    const client = await this.pool.connect();
-    try {
-      const pgSql = this.convertSQLiteToPostgreSQL(sql);
-      logger.debug('PostgreSQL run:', { 
-        sql: pgSql.substring(0, 150),
-        paramCount: params.length 
-      });
-      const result = await client.query(pgSql, params);
-      return { 
-        lastID: result.rows[0]?.id, 
-        changes: result.rowCount || 0 
-      };
-    } catch (error) {
-      logger.error('❌ PostgreSQL run error:', {
-        message: error instanceof Error ? error.message : String(error),
-        sql: sql.substring(0, 150),
-        code: (error as any)?.code,
-        detail: (error as any)?.detail
-      });
-      throw error;
-    } finally {
-      client.release();
-    }
+    return this.executeWithRetry(async () => {
+      const client = await this.pool.connect();
+      try {
+        const pgSql = this.convertSQLiteToPostgreSQL(sql);
+        logger.debug('PostgreSQL run:', { 
+          sql: pgSql.substring(0, 150),
+          paramCount: params.length 
+        });
+        const result = await client.query(pgSql, params);
+        return { 
+          lastID: result.rows[0]?.id, 
+          changes: result.rowCount || 0 
+        };
+      } finally {
+        client.release();
+      }
+    });
   }
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  // Retry helper with exponential backoff for connection failures
+  private async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelayMs: number = 100
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        lastError = error;
+        
+        // Don't retry on syntax errors or permission errors
+        if (error?.code === 'SYNTAX_ERROR' || error?.code === 'INSUFFICIENT_PRIVILEGE') {
+          logger.error('Non-retryable PostgreSQL error:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail
+          });
+          throw error;
+        }
+        
+        if (attempt < maxRetries) {
+          const delayMs = initialDelayMs * Math.pow(2, attempt);
+          logger.warn(`Database operation failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms:`, {
+            error: error.message,
+            code: error.code
+          });
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          logger.error('❌ PostgreSQL operation failed after all retries:', {
+            message: error instanceof Error ? error.message : String(error),
+            sql: error?.sql?.substring(0, 150),
+            code: error?.code,
+            detail: error?.detail,
+            attempts: maxRetries + 1
+          });
+        }
+      }
+    }
+    
+    throw lastError;
   }
 
   private convertSQLiteToPostgreSQL(sql: string): string {
