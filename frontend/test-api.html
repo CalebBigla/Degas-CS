@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Registration API</title>
+</head>
+<body>
+    <h1>Test Registration API</h1>
+    <div id="result"></div>
+    
+    <script>
+        const formId = '06aa4b67-76fe-411a-a1e0-682871e8506f';
+        const resultDiv = document.getElementById('result');
+        
+        // Test 1: Get form details
+        fetch(`http://localhost:3001/api/fixed-forms/${formId}`)
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML += '<h2>✅ Form API Works!</h2>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                // Test 2: Try registration
+                return fetch(`http://localhost:3001/api/form/register/${formId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'HTML Test User',
+                        phone: '+1111111111',
+                        email: 'htmltest@example.com',
+                        address: '123 HTML St',
+                        password: 'test123'
+                    })
+                });
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML += '<h2>✅ Registration API Works!</h2>';
+                resultDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                resultDiv.innerHTML += '<h2>❌ Error!</h2>';
+                resultDiv.innerHTML += '<pre>' + error.message + '</pre>';
+            });
+    </script>
+</body>
+</html>
