@@ -99,16 +99,20 @@ class PostgreSQLAdapter implements DatabaseAdapter {
       // Convert SQLite syntax to PostgreSQL
       const pgSql = this.convertSQLiteToPostgreSQL(sql);
       logger.debug('PostgreSQL query:', { 
-        sql: pgSql.substring(0, 100), 
+        original: sql.substring(0, 150), 
+        converted: pgSql.substring(0, 150),
         paramCount: params.length 
       });
       const result = await client.query(pgSql, params);
       return { rows: result.rows };
     } catch (error) {
       logger.error('❌ PostgreSQL query error:', {
-        error: error instanceof Error ? error.message : String(error),
-        sql: sql.substring(0, 100),
-        paramCount: params.length
+        message: error instanceof Error ? error.message : String(error),
+        originalSQL: sql.substring(0, 150),
+        paramCount: params.length,
+        params: params.slice(0, 3),  // Log first 3 params for debugging
+        code: (error as any)?.code,
+        detail: (error as any)?.detail
       });
       throw error;
     } finally {
@@ -130,11 +134,23 @@ class PostgreSQLAdapter implements DatabaseAdapter {
     const client = await this.pool.connect();
     try {
       const pgSql = this.convertSQLiteToPostgreSQL(sql);
+      logger.debug('PostgreSQL run:', { 
+        sql: pgSql.substring(0, 150),
+        paramCount: params.length 
+      });
       const result = await client.query(pgSql, params);
       return { 
         lastID: result.rows[0]?.id, 
         changes: result.rowCount || 0 
       };
+    } catch (error) {
+      logger.error('❌ PostgreSQL run error:', {
+        message: error instanceof Error ? error.message : String(error),
+        sql: sql.substring(0, 150),
+        code: (error as any)?.code,
+        detail: (error as any)?.detail
+      });
+      throw error;
     } finally {
       client.release();
     }
@@ -149,6 +165,7 @@ class PostgreSQLAdapter implements DatabaseAdapter {
       // Convert datetime functions
       .replace(/datetime\('now'\)/g, 'NOW()')
       .replace(/datetime\("now"\)/g, 'NOW()')
+      .replace(/CURRENT_TIMESTAMP/g, 'NOW()')
       .replace(/datetime\('now',\s*'([^']+)'\)/g, (match, offset) => {
         // Convert SQLite datetime offsets to PostgreSQL intervals
         // Examples: '-7 days', '+1 hour', '-30 minutes'
@@ -158,6 +175,11 @@ class PostgreSQLAdapter implements DatabaseAdapter {
         // Same for double quotes
         return `(NOW() ${offset.includes('-') ? '-' : '+'} INTERVAL '${offset.replace(/^[+-]\s*/, '')}')`
       })
+      // Convert SQLite boolean syntax to PostgreSQL
+      .replace(/\s*=\s*1(\s+AND|\s+OR|\s*[,;\)])/g, ' = true$1')  // = 1 to = true
+      .replace(/\s*=\s*0(\s+AND|\s+OR|\s*[,;\)])/g, ' = false$1')  // = 0 to = false
+      .replace(/\bTRUE\b/g, 'true')  // TRUE to true
+      .replace(/\bFALSE\b/g, 'false')  // FALSE to false
       // Convert json_extract to PostgreSQL JSON operators
       .replace(/json_extract\((\w+\.?\w*),\s*'(\$\.[^']+)'\)/g, (match, table, path) => {
         // Convert json_extract(table.column, '$.field') to (table.column->>'field')
@@ -169,9 +191,12 @@ class PostgreSQLAdapter implements DatabaseAdapter {
         const field = path.replace('$.', '');
         return `(${table}->>'${field}')`
       })
-      .replace(/AUTOINCREMENT/g, 'SERIAL')
+      // Convert AUTOINCREMENT
+      .replace(/\bAUTOINCREMENT\b/g, 'SERIAL')
       .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY DEFAULT gen_random_uuid()')
-      .replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY');
+      .replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY')
+      // Convert COUNT(*) syntax to be PostgreSQL-safe
+      .replace(/COUNT\(\*\) as (\w+)/gi, 'COUNT(*) as $1');
     
     // Convert ? placeholders to $1, $2, $3, etc.
     let paramIndex = 1;

@@ -382,24 +382,82 @@ export const getTables = async (req: AuthRequest, res: Response) => {
   try {
     // PRODUCTION-SAFE: Database-only table retrieval
     const db = getDatabase();
-    const tables = await db.all('SELECT * FROM tables ORDER BY created_at DESC');
+    let tables;
+    
+    try {
+      tables = await db.all('SELECT * FROM tables ORDER BY created_at DESC');
+    } catch (dbErr) {
+      logger.error('❌ Database query error in getTables:', {
+        message: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        code: (dbErr as any)?.code,
+        detail: (dbErr as any)?.detail,
+        hint: (dbErr as any)?.hint
+      });
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch tables from database',
+        details: process.env.NODE_ENV === 'development' ? {
+          message: dbErr instanceof Error ? dbErr.message : String(dbErr),
+          code: (dbErr as any)?.code
+        } : undefined
+      });
+    }
 
     const formattedTables = await Promise.all(tables.map(async (row: any) => {
-      // Get user count for each table
-      const userCountResult = await db.get(
-        'SELECT COUNT(*) as count FROM dynamic_users WHERE table_id = ?',
-        [row.id]
-      );
-      
-      return {
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        schema: JSON.parse(row.schema),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        userCount: userCountResult?.count || 0
-      };
+      try {
+        // Get user count for each table
+        let userCountResult;
+        try {
+          userCountResult = await db.get(
+            'SELECT COUNT(*) as count FROM dynamic_users WHERE table_id = ?',
+            [row.id]
+          );
+        } catch (countErr) {
+          logger.warn('Warning: Failed to get user count for table:', { 
+            tableId: row.id, 
+            error: countErr instanceof Error ? countErr.message : String(countErr) 
+          });
+          userCountResult = { count: 0 };
+        }
+        
+        // Safely parse schema JSON
+        let parsedSchema = [];
+        try {
+          parsedSchema = typeof row.schema === 'string' ? JSON.parse(row.schema) : (row.schema || []);
+        } catch (parseErr) {
+          logger.warn('Warning: Failed to parse table schema:', { 
+            tableId: row.id, 
+            error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+            rawSchema: typeof row.schema === 'string' ? row.schema.substring(0, 100) : 'not-a-string'
+          });
+        }
+        
+        return {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          schema: parsedSchema,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          userCount: userCountResult?.count || 0
+        };
+      } catch (formatErr) {
+        logger.error('Error formatting individual table:', { 
+          tableId: row.id, 
+          error: formatErr instanceof Error ? formatErr.message : String(formatErr) 
+        });
+        // Return minimal table object as fallback
+        return {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          schema: [],
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          userCount: 0
+        };
+      }
     }));
 
     res.json({
@@ -408,10 +466,15 @@ export const getTables = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('Get tables error:', error);
+    logger.error('❌ Get tables error:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any)?.code
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch tables'
+      error: 'Failed to fetch tables',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };

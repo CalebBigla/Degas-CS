@@ -124,6 +124,7 @@ async function initializePostgreSQL(): Promise<void> {
 
     // FIXED USER SCHEMA TABLES (Production-Ready Pipeline)
     // New fixed Users collection with standard fields for stability and simplicity
+    // Create users table (compatible with both SQLite and PostgreSQL)
     await db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -132,18 +133,18 @@ async function initializePostgreSQL(): Promise<void> {
         email TEXT NOT NULL UNIQUE,
         address TEXT NOT NULL,
         password TEXT NOT NULL,
-        "formId" UUID NOT NULL,
+        formid UUID NOT NULL,
         scanned BOOLEAN DEFAULT false,
-        "scannedAt" TIMESTAMP DEFAULT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW(),
-        "updatedAt" TIMESTAMP DEFAULT NOW()
+        scannedat TIMESTAMP DEFAULT NULL,
+        createdat TIMESTAMP DEFAULT NOW(),
+        updatedat TIMESTAMP DEFAULT NOW()
       )
     `);
 
     // Create indexes on users table for performance
     await db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_formId ON users("formId")`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_formid ON users(formid)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_users_scanned ON users(scanned)`);
 
     // NEW Forms collection to manage forms with associated QR codes
@@ -152,15 +153,15 @@ async function initializePostgreSQL(): Promise<void> {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL UNIQUE,
         link TEXT NOT NULL UNIQUE,
-        "qrCode" TEXT DEFAULT NULL,
-        "isActive" BOOLEAN DEFAULT true,
-        "createdAt" TIMESTAMP DEFAULT NOW(),
-        "updatedAt" TIMESTAMP DEFAULT NOW()
+        qrcode TEXT DEFAULT NULL,
+        isactive BOOLEAN DEFAULT true,
+        createdat TIMESTAMP DEFAULT NOW(),
+        updatedat TIMESTAMP DEFAULT NOW()
       )
     `);
 
     // Create indexes on forms table
-    await db.run(`CREATE INDEX IF NOT EXISTS idx_forms_active ON forms("isActive")`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_forms_active ON forms(isactive)`);
 
     // Link core users to dynamic table records
     await db.run(`

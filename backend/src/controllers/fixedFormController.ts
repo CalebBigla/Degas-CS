@@ -26,12 +26,20 @@ class FixedFormController {
       }
 
       // Check for duplicate form name
-      const existingForm = await db.get('SELECT id FROM forms WHERE name = ?', [name]);
-      if (existingForm) {
-        return res.status(409).json({
-          success: false,
-          message: 'Form with this name already exists'
+      try {
+        const existingForm = await db.get('SELECT id FROM forms WHERE name = ?', [name]);
+        if (existingForm) {
+          return res.status(409).json({
+            success: false,
+            message: 'Form with this name already exists'
+          });
+        }
+      } catch (err) {
+        logger.error('Error checking for duplicate form:', {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as any)?.code
         });
+        throw err;
       }
 
       // Generate form ID
@@ -52,11 +60,21 @@ class FixedFormController {
       });
 
       // Insert form into database
-      await db.run(
-        `INSERT INTO forms (id, name, link, qrcode, isactive, createdat, updatedat)
-         VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`,
-        [formId, name, registrationLink, qrCodeData]
-      );
+      // Note: datetime('now') will be converted to NOW() for PostgreSQL by the adapter
+      try {
+        await db.run(
+          `INSERT INTO forms (id, name, link, qrcode, isactive, createdat, updatedat)
+           VALUES (?, ?, ?, ?, true, datetime('now'), datetime('now'))`,
+          [formId, name, registrationLink, qrCodeData]
+        );
+      } catch (dbErr) {
+        logger.error('Error creating form in database:', {
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+          code: (dbErr as any)?.code,
+          detail: (dbErr as any)?.detail
+        });
+        throw dbErr;
+      }
 
       logger.info('✅ Form created successfully', { formId, name, scanUrl });
 
@@ -73,7 +91,11 @@ class FixedFormController {
       });
 
     } catch (error: any) {
-      logger.error('Form creation error:', error);
+      logger.error('❌ Form creation error:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+        detail: error?.detail
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to create form',
@@ -97,14 +119,25 @@ class FixedFormController {
       // Get user count for each form
       const formsWithCounts = await Promise.all(
         forms.map(async (form: any) => {
-          const countResult = await db.get(
-            'SELECT COUNT(*) as count FROM users WHERE formid = ?',
-            [form.id]
-          );
-          return {
-            ...form,
-            userCount: countResult?.count || 0
-          };
+          try {
+            const countResult = await db.get(
+              'SELECT COUNT(*) as count FROM users WHERE formid = ?',
+              [form.id]
+            );
+            return {
+              ...form,
+              userCount: countResult?.count || 0
+            };
+          } catch (err) {
+            logger.warn('Warning: Could not get user count for form:', {
+              formId: form.id,
+              error: err instanceof Error ? err.message : String(err)
+            });
+            return {
+              ...form,
+              userCount: 0
+            };
+          }
         })
       );
 
@@ -116,7 +149,11 @@ class FixedFormController {
       });
 
     } catch (error: any) {
-      logger.error('Error fetching forms:', error);
+      logger.error('❌ Error fetching forms:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+        detail: error?.detail
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to fetch forms',
@@ -133,10 +170,21 @@ class FixedFormController {
     try {
       const { formId } = req.params;
 
-      const form = await db.get(
-        'SELECT id, name, link, qrcode, isactive, createdat, updatedat FROM forms WHERE id = ?',
-        [formId]
-      );
+      let form;
+      try {
+        form = await db.get(
+          'SELECT id, name, link, qrcode, isactive, createdat, updatedat FROM forms WHERE id = ?',
+          [formId]
+        );
+      } catch (err) {
+        logger.error('Error fetching form from database:', {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as any)?.code,
+          detail: (err as any)?.detail,
+          formId
+        });
+        throw err;
+      }
 
       if (!form) {
         return res.status(404).json({
@@ -146,10 +194,19 @@ class FixedFormController {
       }
 
       // Get user count
-      const countResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formid = ?',
-        [formId]
-      );
+      let countResult;
+      try {
+        countResult = await db.get(
+          'SELECT COUNT(*) as count FROM users WHERE formid = ?',
+          [formId]
+        );
+      } catch (err) {
+        logger.warn('Warning: Could not get user count for form:', {
+          formId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+        countResult = { count: 0 };
+      }
 
       res.json({
         success: true,
@@ -160,7 +217,11 @@ class FixedFormController {
       });
 
     } catch (error: any) {
-      logger.error('Error fetching form:', error);
+      logger.error('❌ Error fetching form:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+        detail: error?.detail
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to fetch form',
@@ -179,12 +240,20 @@ class FixedFormController {
       const { name, isActive } = req.body;
 
       // Check if form exists
-      const form = await db.get('SELECT id FROM forms WHERE id = ?', [formId]);
-      if (!form) {
-        return res.status(404).json({
-          success: false,
-          message: 'Form not found'
+      try {
+        const form = await db.get('SELECT id FROM forms WHERE id = ?', [formId]);
+        if (!form) {
+          return res.status(404).json({
+            success: false,
+            message: 'Form not found'
+          });
+        }
+      } catch (err) {
+        logger.error('Error checking if form exists:', {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as any)?.code
         });
+        throw err;
       }
 
       // Build update query
@@ -198,7 +267,8 @@ class FixedFormController {
 
       if (isActive !== undefined) {
         updates.push('isactive = ?');
-        values.push(isActive ? 1 : 0);
+        // Use boolean true/false directly - conversion layer will adjust for PostgreSQL if needed
+        values.push(isActive === true || isActive === 1 || isActive === 'true');
       }
 
       if (updates.length === 0) {
@@ -211,10 +281,19 @@ class FixedFormController {
       updates.push("updatedat = datetime('now')");
       values.push(formId);
 
-      await db.run(
-        `UPDATE forms SET ${updates.join(', ')} WHERE id = ?`,
-        values
-      );
+      try {
+        await db.run(
+          `UPDATE forms SET ${updates.join(', ')} WHERE id = ?`,
+          values
+        );
+      } catch (dbErr) {
+        logger.error('Error updating form in database:', {
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+          code: (dbErr as any)?.code,
+          detail: (dbErr as any)?.detail
+        });
+        throw dbErr;
+      }
 
       logger.info('✅ Form updated successfully', { formId });
 
@@ -224,7 +303,11 @@ class FixedFormController {
       });
 
     } catch (error: any) {
-      logger.error('Form update error:', error);
+      logger.error('❌ Form update error:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+        detail: error?.detail
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to update form',
@@ -242,7 +325,18 @@ class FixedFormController {
       const { formId } = req.params;
 
       // Check if form exists
-      const form = await db.get('SELECT id FROM forms WHERE id = ?', [formId]);
+      let form;
+      try {
+        form = await db.get('SELECT id FROM forms WHERE id = ?', [formId]);
+      } catch (err) {
+        logger.error('Error checking if form exists:', {
+          error: err instanceof Error ? err.message : String(err),
+          code: (err as any)?.code,
+          formId
+        });
+        throw err;
+      }
+
       if (!form) {
         return res.status(404).json({
           success: false,
@@ -251,10 +345,20 @@ class FixedFormController {
       }
 
       // Check if form has users
-      const userCount = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formId = ?',
-        [formId]
-      );
+      let userCount;
+      try {
+        userCount = await db.get(
+          'SELECT COUNT(*) as count FROM users WHERE formid = ?',
+          [formId]
+        );
+      } catch (err) {
+        logger.warn('Warning: Could not check user count for form deletion:', {
+          formId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+        // Continue with deletion anyway
+        userCount = { count: 0 };
+      }
 
       if (userCount && userCount.count > 0) {
         return res.status(400).json({
@@ -264,7 +368,17 @@ class FixedFormController {
       }
 
       // Delete form
-      await db.run('DELETE FROM forms WHERE id = ?', [formId]);
+      try {
+        await db.run('DELETE FROM forms WHERE id = ?', [formId]);
+      } catch (dbErr) {
+        logger.error('Error deleting form from database:', {
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+          code: (dbErr as any)?.code,
+          detail: (dbErr as any)?.detail,
+          formId
+        });
+        throw dbErr;
+      }
 
       logger.info('✅ Form deleted successfully', { formId });
 
@@ -274,7 +388,11 @@ class FixedFormController {
       });
 
     } catch (error: any) {
-      logger.error('Form deletion error:', error);
+      logger.error('❌ Form deletion error:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+        detail: error?.detail
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to delete form',

@@ -80,11 +80,11 @@ class UserService {
             const userId = uuidv4();
             const now = new Date().toISOString();
 
-            // Insert new user
+            // Insert new user (using lowercase column names for PostgreSQL compatibility)
             db.run(
-              `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, createdAt, updatedAt)
+              `INSERT INTO users (id, name, phone, email, address, password, formid, scanned, scannedat, createdat, updatedat)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [userId, name, phone, email, address, hashedPassword, formId, 0, null, now, now],
+              [userId, name, phone, email, address, hashedPassword, formId, false, null, now, now],
               function(err) {
                 if (err) {
                   logger.error('Error creating user:', err);
@@ -129,7 +129,7 @@ class UserService {
 
       // Find user by email
       db.get(
-        'SELECT id, email, name, password, formId FROM users WHERE email = ?',
+        'SELECT id, email, name, password, formid FROM users WHERE email = ?',
         [email],
         async (err, row: any) => {
           if (err) {
@@ -158,7 +158,7 @@ class UserService {
               id: row.id,
               email: row.email,
               name: row.name,
-              formId: row.formId
+              formId: row.formid
             });
           } catch (compareError) {
             logger.error('Error comparing password:', compareError);
@@ -211,7 +211,7 @@ class UserService {
   async getUsersByFormId(formId: string): Promise<User[]> {
     return new Promise((resolve, reject) => {
       db.all(
-        'SELECT * FROM users WHERE formId = ? ORDER BY createdAt DESC',
+        'SELECT * FROM users WHERE formid = ? ORDER BY createdat DESC',
         [formId],
         (err, rows: any[]) => {
           if (err) {
@@ -229,11 +229,11 @@ class UserService {
             phone: row.phone,
             email: row.email,
             address: row.address,
-            formId: row.formId,
+            formId: row.formid,
             scanned: Boolean(row.scanned),
-            scannedAt: row.scannedAt,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt
+            scannedAt: row.scannedat,
+            createdAt: row.createdat,
+            updatedAt: row.updatedat
           }));
 
           resolve(users);
@@ -251,7 +251,7 @@ class UserService {
       const now = new Date().toISOString();
 
       db.run(
-        'UPDATE users SET scanned = 1, scannedAt = ?, updatedAt = ? WHERE id = ?',
+        'UPDATE users SET scanned = true, scannedat = ?, updatedat = ? WHERE id = ?',
         [now, now, userId],
         function(err) {
           if (err) {
@@ -320,7 +320,7 @@ class UserService {
 
           // Get scanned users list
           db.all(
-            `SELECT id, name, email, phone, scannedAt FROM users WHERE formId = ? AND scanned = 1 ORDER BY scannedAt DESC`,
+            `SELECT id, name, email, phone, scannedat FROM users WHERE formid = ? AND scanned = true ORDER BY scannedat DESC`,
             [formId],
             (err, scannedList: any[]) => {
               if (err) {

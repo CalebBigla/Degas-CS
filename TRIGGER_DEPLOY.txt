@@ -1,0 +1,2 @@
+Trigger deploy - PostgreSQL column name fixes applied
+Timestamp: 2026-04-05
