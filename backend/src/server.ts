@@ -439,6 +439,11 @@ app.post('/api/scanner/debug/user-data', async (req, res) => {
   }
 });
 
+// Setup endpoint - MUST be before readiness check
+// This allows database initialization even when backend is not ready
+import setupRoutes from './routes/setup';
+app.use('/api/setup', setupRoutes);
+
 // Middleware to check backend readiness for all other API routes
 app.use('/api/*', (req, res, next) => {
   if (!isBackendReady) {
