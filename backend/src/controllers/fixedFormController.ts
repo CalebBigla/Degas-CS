@@ -53,7 +53,7 @@ class FixedFormController {
 
       // Insert form into database
       await db.run(
-        `INSERT INTO forms (id, name, link, qrCode, isActive, createdAt, updatedAt)
+        `INSERT INTO forms (id, name, link, qrcode, isactive, createdat, updatedat)
          VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`,
         [formId, name, registrationLink, qrCodeData]
       );
@@ -89,16 +89,16 @@ class FixedFormController {
   async getAllForms(req: Request, res: Response) {
     try {
       const forms = await db.all(
-        `SELECT id, name, link, qrCode, isActive, createdAt, updatedAt
+        `SELECT id, name, link, qrcode, isactive, createdat, updatedat
          FROM forms
-         ORDER BY createdAt DESC`
+         ORDER BY createdat DESC`
       );
 
       // Get user count for each form
       const formsWithCounts = await Promise.all(
         forms.map(async (form: any) => {
           const countResult = await db.get(
-            'SELECT COUNT(*) as count FROM users WHERE formId = ?',
+            'SELECT COUNT(*) as count FROM users WHERE formid = ?',
             [form.id]
           );
           return {
@@ -134,7 +134,7 @@ class FixedFormController {
       const { formId } = req.params;
 
       const form = await db.get(
-        'SELECT id, name, link, qrCode, isActive, createdAt, updatedAt FROM forms WHERE id = ?',
+        'SELECT id, name, link, qrcode, isactive, createdat, updatedat FROM forms WHERE id = ?',
         [formId]
       );
 
@@ -147,7 +147,7 @@ class FixedFormController {
 
       // Get user count
       const countResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formId = ?',
+        'SELECT COUNT(*) as count FROM users WHERE formid = ?',
         [formId]
       );
 
@@ -197,7 +197,7 @@ class FixedFormController {
       }
 
       if (isActive !== undefined) {
-        updates.push('isActive = ?');
+        updates.push('isactive = ?');
         values.push(isActive ? 1 : 0);
       }
 
@@ -208,7 +208,7 @@ class FixedFormController {
         });
       }
 
-      updates.push("updatedAt = datetime('now')");
+      updates.push("updatedat = datetime('now')");
       values.push(formId);
 
       await db.run(

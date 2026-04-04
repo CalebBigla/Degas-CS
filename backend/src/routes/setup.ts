@@ -74,11 +74,11 @@ router.get('/initialize', async (req: Request, res: Response) => {
           email TEXT NOT NULL UNIQUE,
           address TEXT NOT NULL,
           password TEXT NOT NULL,
-          "formId" UUID NOT NULL,
+          formid UUID NOT NULL,
           scanned BOOLEAN DEFAULT false,
-          "scannedAt" TIMESTAMP DEFAULT NULL,
-          "createdAt" TIMESTAMP DEFAULT NOW(),
-          "updatedAt" TIMESTAMP DEFAULT NOW()
+          scannedat TIMESTAMP DEFAULT NULL,
+          createdat TIMESTAMP DEFAULT NOW(),
+          updatedat TIMESTAMP DEFAULT NOW()
         )
       `);
       results.push('✅ users table ready');
@@ -89,10 +89,10 @@ router.get('/initialize', async (req: Request, res: Response) => {
           id UUID PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
           link TEXT NOT NULL UNIQUE,
-          "qrCode" TEXT DEFAULT NULL,
-          "isActive" BOOLEAN DEFAULT true,
-          "createdAt" TIMESTAMP DEFAULT NOW(),
-          "updatedAt" TIMESTAMP DEFAULT NOW()
+          qrcode TEXT DEFAULT NULL,
+          isactive BOOLEAN DEFAULT true,
+          createdat TIMESTAMP DEFAULT NOW(),
+          updatedat TIMESTAMP DEFAULT NOW()
         )
       `);
       results.push('✅ forms table ready');
@@ -102,14 +102,14 @@ router.get('/initialize', async (req: Request, res: Response) => {
         CREATE TABLE IF NOT EXISTS access_logs (
           id SERIAL PRIMARY KEY,
           user_id UUID,
-          "formId" UUID,
+          formid UUID,
           table_id UUID,
           qr_code_id UUID,
           scanner_location TEXT,
           access_granted BOOLEAN NOT NULL,
           scanned_by UUID,
           scan_timestamp TIMESTAMP DEFAULT NOW(),
-          "scannedAt" TIMESTAMP DEFAULT NOW(),
+          scannedat TIMESTAMP DEFAULT NOW(),
           ip_address TEXT,
           user_agent TEXT,
           denial_reason TEXT
@@ -120,7 +120,7 @@ router.get('/initialize', async (req: Request, res: Response) => {
       // Create indexes
       await client.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_users_formId ON users("formId")`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_users_formid ON users(formid)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);
       results.push('✅ Indexes created');
 
@@ -195,13 +195,13 @@ router.get('/initialize', async (req: Request, res: Response) => {
         
         // Update QR code
         await client.query(
-          'UPDATE forms SET "qrCode" = $1, link = $2, "updatedAt" = NOW() WHERE id = $3',
+          'UPDATE forms SET qrcode = $1, link = $2, updatedat = NOW() WHERE id = $3',
           [qrCodeData, registrationLink, formId]
         );
         results.push('✅ QR code updated');
       } else {
         await client.query(
-          `INSERT INTO forms (id, name, link, "qrCode", "isActive")
+          `INSERT INTO forms (id, name, link, qrcode, isactive)
            VALUES ($1, $2, $3, $4, true)`,
           [formId, 'The Force of Grace Ministry', registrationLink, qrCodeData]
         );

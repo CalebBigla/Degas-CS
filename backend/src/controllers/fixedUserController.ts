@@ -69,7 +69,7 @@ class FixedUserController {
 
       // Insert user into database
       await db.run(
-        `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, createdAt, updatedAt)
+        `INSERT INTO users (id, name, phone, email, address, password, formid, scanned, scannedat, createdat, updatedat)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, datetime('now'), datetime('now'))`,
         [userId, name, phone, email, address, hashedPassword, formId]
       );
@@ -111,7 +111,7 @@ class FixedUserController {
 
       // Find user by email
       const user = await db.get(
-        'SELECT id, name, phone, email, address, password, formId, scanned, scannedAt FROM users WHERE email = ?',
+        'SELECT id, name, phone, email, address, password, formid, scanned, scannedat FROM users WHERE email = ?',
         [email]
       );
 
@@ -131,16 +131,8 @@ class FixedUserController {
         });
       }
 
-      // Generate QR code for user scanning
-      const qrPayload = {
-        userId: user.id,
-        formId: user.formId,
-        type: 'user_scan',
-        timestamp: Date.now()
-      };
-      
       // Use QRService to generate secure QR code
-      const { qrImage } = await QRService.generateSecureQR(user.id, user.formId);
+      const { qrImage } = await QRService.generateSecureQR(user.id, user.formid);
 
       logger.info('✅ User logged in successfully', { userId: user.id, email: user.email });
 
@@ -148,7 +140,7 @@ class FixedUserController {
       res.json({
         success: true,
         userId: user.id,
-        formId: user.formId,
+        formId: user.formid,
         qrCode: qrImage, // Base64 QR code image
         user: {
           id: user.id,
@@ -157,7 +149,7 @@ class FixedUserController {
           email: user.email,
           address: user.address,
           scanned: user.scanned,
-          scannedAt: user.scannedAt
+          scannedAt: user.scannedat
         }
       });
 
@@ -188,10 +180,10 @@ class FixedUserController {
 
       // Get users (excluding passwords)
       const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, scannedAt, createdAt, updatedAt
+        `SELECT id, name, phone, email, address, scanned, scannedat, createdat, updatedat
          FROM users
-         WHERE formId = ?
-         ORDER BY createdAt DESC`,
+         WHERE formid = ?
+         ORDER BY createdat DESC`,
         [formId]
       );
 
@@ -287,7 +279,7 @@ class FixedUserController {
 
       // Find user
       const user = await db.get(
-        'SELECT id, name, email, formId, scanned, scannedAt FROM users WHERE id = ?',
+        'SELECT id, name, email, formid, scanned, scannedat FROM users WHERE id = ?',
         [userId]
       );
 
@@ -299,7 +291,7 @@ class FixedUserController {
       }
 
       // Verify user belongs to the form
-      if (user.formId !== formId) {
+      if (user.formid !== formId) {
         return res.status(400).json({
           success: false,
           message: 'User does not belong to this form'
@@ -311,7 +303,7 @@ class FixedUserController {
         return res.status(400).json({
           success: false,
           message: 'Already scanned',
-          scannedAt: user.scannedAt
+          scannedAt: user.scannedat
         });
       }
 
@@ -319,7 +311,7 @@ class FixedUserController {
 
       // Mark as scanned
       await db.run(
-        `UPDATE users SET scanned = 1, scannedAt = ?, updatedAt = datetime('now') WHERE id = ?`,
+        `UPDATE users SET scanned = 1, scannedat = ?, updatedat = datetime('now') WHERE id = ?`,
         [scannedAt, userId]
       );
 
@@ -429,19 +421,19 @@ class FixedUserController {
 
       // Get total users
       const totalResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formId = ?',
+        'SELECT COUNT(*) as count FROM users WHERE formid = ?',
         [formId]
       );
 
       // Get scanned users
       const scannedResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formId = ? AND scanned = 1',
+        'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 1',
         [formId]
       );
 
       // Get not scanned users
       const notScannedResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formId = ? AND scanned = 0',
+        'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 0',
         [formId]
       );
 
@@ -488,7 +480,7 @@ class FixedUserController {
       }
 
       // Find user
-      const user = await db.get('SELECT id, formId FROM users WHERE id = ?', [userId]);
+      const user = await db.get('SELECT id, formid FROM users WHERE id = ?', [userId]);
       if (!user) {
         return res.status(404).json({
           success: false,
@@ -499,7 +491,7 @@ class FixedUserController {
       // Update user
       await db.run(
         `UPDATE users 
-         SET name = ?, phone = ?, email = ?, address = ?, updatedAt = datetime('now')
+         SET name = ?, phone = ?, email = ?, address = ?, updatedat = datetime('now')
          WHERE id = ?`,
         [name, phone, email, address, userId]
       );
