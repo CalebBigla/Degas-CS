@@ -145,11 +145,29 @@ router.get('/initialize', async (req: Request, res: Response) => {
         // Create super admin
         const hashedPassword = await bcrypt.hash('admin123', 10);
         
-        await client.query(
-          `INSERT INTO core_users (email, password, full_name, phone, role, status)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          ['admin@degas.com', hashedPassword, 'Super Admin', '+1234567890', 'super_admin', 'active']
-        );
+        // Check if full_name column exists
+        const columnCheck = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'core_users' AND column_name = 'full_name'
+        `);
+        
+        const hasFullNameColumn = columnCheck.rows.length > 0;
+        
+        if (hasFullNameColumn) {
+          await client.query(
+            `INSERT INTO core_users (email, password, full_name, phone, role, status)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['admin@degas.com', hashedPassword, 'Super Admin', '+1234567890', 'super_admin', 'active']
+          );
+        } else {
+          // Insert without full_name column
+          await client.query(
+            `INSERT INTO core_users (email, password, role, status)
+             VALUES ($1, $2, $3, $4)`,
+            ['admin@degas.com', hashedPassword, 'super_admin', 'active']
+          );
+        }
         
         results.push('✅ Super admin created: admin@degas.com / admin123');
       }
