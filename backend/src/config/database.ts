@@ -122,6 +122,46 @@ async function initializePostgreSQL(): Promise<void> {
       )
     `);
 
+    // FIXED USER SCHEMA TABLES (Production-Ready Pipeline)
+    // New fixed Users collection with standard fields for stability and simplicity
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        address TEXT NOT NULL,
+        password TEXT NOT NULL,
+        "formId" UUID NOT NULL,
+        scanned BOOLEAN DEFAULT false,
+        "scannedAt" TIMESTAMP DEFAULT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "updatedAt" TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes on users table for performance
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_formId ON users("formId")`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_users_scanned ON users(scanned)`);
+
+    // NEW Forms collection to manage forms with associated QR codes
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS forms (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL UNIQUE,
+        link TEXT NOT NULL UNIQUE,
+        "qrCode" TEXT DEFAULT NULL,
+        "isActive" BOOLEAN DEFAULT true,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "updatedAt" TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Create indexes on forms table
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_forms_active ON forms("isActive")`);
+
     // Link core users to dynamic table records
     await db.run(`
       CREATE TABLE IF NOT EXISTS user_data_links (
