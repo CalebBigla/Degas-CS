@@ -3,7 +3,7 @@
 services:
   # Backend API Server (with SQLite)
   - type: web
-    name: degas-cs-backend
+    name: degas-cs-backend-brmk
     env: node
     region: oregon
     plan: starter

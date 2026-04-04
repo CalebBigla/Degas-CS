@@ -11,7 +11,7 @@ export default defineConfig({
     basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.ico'],
       manifest: {
         name: 'The Force of Grace',
         short_name: 'Force of Grace',
@@ -20,18 +20,7 @@ export default defineConfig({
         background_color: '#121212',
         display: 'standalone',
         orientation: 'portrait',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
+        icons: []
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
