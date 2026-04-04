@@ -17,8 +17,8 @@ export async function getFormTables(req: Request, res: Response) {
     // Get old forms from form_definitions
     const oldForms = await formService.getAllForms();
     
-    // Get new forms from forms table - use ? placeholder, adapter will convert
-    const newForms = await db.all('SELECT * FROM forms ORDER BY "createdAt" DESC');
+    // Get new forms from forms table - use lowercase column names
+    const newForms = await db.all('SELECT * FROM forms ORDER BY createdat DESC');
     
     logger.info(`📊 Found ${oldForms.length} old forms and ${newForms.length} new forms`);
     
@@ -70,9 +70,9 @@ export async function getFormTables(req: Request, res: Response) {
     const newFormTables = await Promise.all(
       newForms.map(async (form: any) => {
         try {
-          // Count users registered with this form - use ? placeholder
+          // Count users registered with this form - use lowercase column name
           const result = await db.get(
-            `SELECT COUNT(*) as count FROM users WHERE "formId" = ?`,
+            `SELECT COUNT(*) as count FROM users WHERE formid = ?`,
             [form.id]
           );
           
@@ -163,12 +163,12 @@ export async function getFormTableUsers(req: Request, res: Response) {
       // It's a fixed schema form - get users from users table
       logger.info(`📊 Found fixed schema form: ${newForm.name}`);
       
-      // Use ? placeholder, adapter will convert
+      // Use ? placeholder, adapter will convert - use lowercase column names
       const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, "scannedAt", "createdAt", "updatedAt"
+        `SELECT id, name, phone, email, address, scanned, scannedat, createdat, updatedat
          FROM users
-         WHERE "formId" = ?
-         ORDER BY "createdAt" DESC`,
+         WHERE formid = ?
+         ORDER BY createdat DESC`,
         [formId]
       );
       
