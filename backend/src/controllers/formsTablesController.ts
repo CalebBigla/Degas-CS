@@ -84,7 +84,7 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive !== undefined ? form.isActive : form["isActive"],
+            is_active: form.isactive,
             record_count: recordCount,
             fields: [
               { field_name: 'name', field_label: 'Name', field_type: 'text' },
@@ -92,10 +92,10 @@ export async function getFormTables(req: Request, res: Response) {
               { field_name: 'email', field_label: 'Email', field_type: 'email' },
               { field_name: 'address', field_label: 'Address', field_type: 'text' }
             ],
-            created_at: form.createdAt || form["createdAt"],
-            updated_at: form.updatedAt || form["updatedAt"],
+            created_at: form.createdat,
+            updated_at: form.updatedat,
             link: form.link,
-            qrCode: form.qrCode || form["qrCode"]
+            qrCode: form.qrcode
           };
         } catch (error: any) {
           logger.error(`❌ Error counting users for form ${form.name}:`, {
@@ -109,13 +109,13 @@ export async function getFormTables(req: Request, res: Response) {
             description: 'Fixed schema form',
             target_table: 'users',
             type: 'fixed_form',
-            is_active: form.isActive !== undefined ? form.isActive : form["isActive"],
+            is_active: form.isactive,
             record_count: 0,
             fields: [],
-            created_at: form.createdAt || form["createdAt"],
-            updated_at: form.updatedAt || form["updatedAt"],
+            created_at: form.createdat,
+            updated_at: form.updatedat,
             link: form.link,
-            qrCode: form.qrCode || form["qrCode"],
+            qrCode: form.qrcode,
             error: 'Could not count users'
           };
         }
