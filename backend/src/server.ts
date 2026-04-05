@@ -492,6 +492,62 @@ app.post('/api/scanner/debug/user-data', async (req, res) => {
 import setupRoutes from './routes/setup';
 app.use('/api/setup', setupRoutes);
 
+// DEBUG: Login test endpoint - helps diagnose login issues without logs
+app.post('/api/debug/test-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const { getDatabase } = await import('./config/database');
+    const bcrypt = await import('bcryptjs');
+    const db = getDatabase();
+    
+    const result: any = {
+      step1_input: { email, hasPassword: !!password, passwordLength: password?.length },
+      step2_userLookup: null,
+      step3_passwordCheck: null,
+      step4_finalResult: null
+    };
+    
+    // Step 1: Find user
+    const user = await db.get(
+      'SELECT id, name, email, password, formid FROM users WHERE email = ?',
+      [email]
+    );
+    
+    result.step2_userLookup = {
+      found: !!user,
+      userId: user?.id,
+      email: user?.email,
+      formId: user?.formid,
+      hasStoredPassword: !!user?.password,
+      storedPasswordLength: user?.password?.length || 0,
+      storedPasswordPrefix: user?.password?.substring(0, 10) || 'none'
+    };
+    
+    if (!user) {
+      result.step4_finalResult = 'USER_NOT_FOUND';
+      return res.json(result);
+    }
+    
+    // Step 2: Check password
+    const isValid = await bcrypt.compare(password, user.password);
+    
+    result.step3_passwordCheck = {
+      isValid,
+      providedPassword: password.substring(0, 3) + '***',
+      comparisonMethod: 'bcrypt.compare'
+    };
+    
+    result.step4_finalResult = isValid ? 'LOGIN_SUCCESS' : 'INVALID_PASSWORD';
+    
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // Middleware to check backend readiness for all other API routes
 app.use('/api/*', (req, res, next) => {
   if (!isBackendReady) {
