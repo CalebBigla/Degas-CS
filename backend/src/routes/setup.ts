@@ -117,11 +117,28 @@ router.get('/initialize', async (req: Request, res: Response) => {
       `);
       results.push('✅ access_logs table ready');
 
+      // Create qr_codes table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS qr_codes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL,
+          table_id TEXT,
+          qr_data TEXT NOT NULL,
+          qr_payload TEXT,
+          is_active BOOLEAN DEFAULT true,
+          scan_count INTEGER DEFAULT 0,
+          last_scanned TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      results.push('✅ qr_codes table ready');
+
       // Create indexes
       await client.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_users_formid ON users(formid)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_qr_codes_user_id ON qr_codes(user_id)`);
       results.push('✅ Indexes created');
 
       // Check if admin exists
