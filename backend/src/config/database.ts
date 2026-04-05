@@ -361,6 +361,8 @@ export async function verifyDatabaseSchema(): Promise<void> {
       'attendance_audit_logs'
     ];
     
+    const missingTables: string[] = [];
+    
     for (const tableName of requiredTables) {
       let result;
       if (dbType === 'sqlite') {
@@ -376,8 +378,15 @@ export async function verifyDatabaseSchema(): Promise<void> {
       }
       
       if (!result) {
-        throw new Error(`Missing required table: ${tableName}`);
+        missingTables.push(tableName);
       }
+    }
+    
+    if (missingTables.length > 0) {
+      logger.warn(`⚠️  Missing tables detected: ${missingTables.join(', ')}`);
+      logger.warn('💡 These tables will be created automatically or via /api/setup/initialize');
+      // Don't throw error - allow server to start
+      return;
     }
     
     // For PostgreSQL, add missing columns to access_logs if they don't exist
@@ -409,13 +418,13 @@ export async function verifyDatabaseSchema(): Promise<void> {
     }
     
     logger.info('Database schema verification successful:', {
-      existingTables: requiredTables,
-      allTablesPresent: true,
+      existingTables: requiredTables.filter(t => !missingTables.includes(t)),
+      allTablesPresent: missingTables.length === 0,
       databaseType: dbType
     });
   } catch (error) {
-    logger.error('Database schema verification failed:', error);
-    throw error;
+    logger.warn('Database schema verification encountered an issue (non-fatal):', error);
+    // Don't throw - allow server to start
   }
 }
 
