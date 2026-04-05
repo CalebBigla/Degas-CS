@@ -5,8 +5,10 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import logger from './logger';
 
+// Determine data directory - use DATABASE_DIR env var or fallback to local directory
+const dataDir = process.env.DATABASE_DIR || path.join(__dirname, '../../data');
+
 // Ensure data directory exists
-const dataDir = path.join(__dirname, '../../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }

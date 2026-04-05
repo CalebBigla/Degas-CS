@@ -38,6 +38,8 @@ services:
         value: 10485760
       - key: DATABASE_TYPE
         value: sqlite
+      - key: DATABASE_DIR
+        value: /opt/render/project/src/backend/data
 
   # Frontend Static Site
   - type: web
