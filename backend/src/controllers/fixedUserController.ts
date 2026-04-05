@@ -165,7 +165,15 @@ class FixedUserController {
 
       // Use QRService to generate secure QR code
       logger.info('📱 Generating QR code', { userId: user.id, formId: user.formid });
-      const { qrImage } = await QRService.generateSecureQR(user.id, user.formid);
+      let qrImage = null;
+      try {
+        const qrResult = await QRService.generateSecureQR(user.id, user.formid);
+        qrImage = qrResult.qrImage;
+        logger.info('✅ QR code generated successfully', { userId: user.id });
+      } catch (qrError: any) {
+        logger.warn('⚠️ Failed to generate QR code:', { error: qrError.message, userId: user.id });
+        // Continue without QR code - not critical for login
+      }
 
       logger.info('✅ User logged in successfully', { userId: user.id, email: user.email });
 
@@ -174,7 +182,7 @@ class FixedUserController {
         success: true,
         userId: user.id,
         formId: user.formid,
-        qrCode: qrImage, // Base64 QR code image
+        qrCode: qrImage || null,
         user: {
           id: user.id,
           name: user.name,

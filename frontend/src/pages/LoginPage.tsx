@@ -103,13 +103,13 @@ export function LoginPage() {
           </form>
 
           {/* Registration link */}
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <a href="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" className="text-emerald hover:text-emerald/80 font-medium">
-                Register here
-              </a>
+          <div className="mt-6 p-4 bg-emerald/5 rounded-lg text-center">
+            <p className="text-sm text-gray-700 mb-3">
+              Don't have an account?
             </p>
+            <a href="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" className="inline-block bg-emerald text-white py-2 px-6 rounded-lg font-medium hover:bg-emerald/90 transition">
+              Create Account
+            </a>
           </div>
         </div>
       </div>
