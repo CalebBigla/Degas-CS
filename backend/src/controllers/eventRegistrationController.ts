@@ -230,9 +230,11 @@ class EventRegistrationController {
       const columns = Object.keys(dynamicData);
       const placeholders = columns.map(() => '?').join(', ');
       const values = columns.map(col => dynamicData[col]);
+      // Quote column names to handle reserved keywords like 'number'
+      const quotedColumns = columns.map(col => `"${col}"`).join(', ');
 
       await db.run(
-        `INSERT INTO ${targetTable} (${columns.join(', ')}) VALUES (${placeholders})`,
+        `INSERT INTO ${targetTable} (${quotedColumns}) VALUES (${placeholders})`,
         values
       );
 
