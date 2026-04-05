@@ -19,8 +19,11 @@ class FixedUserController {
       const { formId } = req.params;
       const { name, phone, email, address, password } = req.body;
 
+      logger.info('📝 Registration attempt', { formId, email, name, hasPassword: !!password });
+
       // Validate required fields
       if (!name || !phone || !email || !address || !password) {
+        logger.warn('❌ Registration failed: missing fields');
         return res.status(400).json({
           success: false,
           message: 'All fields are required: name, phone, email, address, password'
@@ -28,6 +31,7 @@ class FixedUserController {
       }
 
       if (!formId) {
+        logger.warn('❌ Registration failed: missing formId');
         return res.status(400).json({
           success: false,
           message: 'formId is required'
@@ -37,6 +41,7 @@ class FixedUserController {
       // Check if form exists
       const form = await db.get('SELECT id, name FROM forms WHERE id = ?', [formId]);
       if (!form) {
+        logger.warn('❌ Registration failed: form not found', { formId });
         return res.status(404).json({
           success: false,
           message: 'Form not found'
@@ -46,6 +51,7 @@ class FixedUserController {
       // Check for duplicate email
       const existingEmail = await db.get('SELECT id FROM users WHERE email = ?', [email]);
       if (existingEmail) {
+        logger.warn('❌ Registration failed: email already exists', { email });
         return res.status(409).json({
           success: false,
           message: 'Email already registered'
@@ -55,6 +61,7 @@ class FixedUserController {
       // Check for duplicate phone
       const existingPhone = await db.get('SELECT id FROM users WHERE phone = ?', [phone]);
       if (existingPhone) {
+        logger.warn('❌ Registration failed: phone already exists', { phone });
         return res.status(409).json({
           success: false,
           message: 'Phone number already registered'
@@ -62,7 +69,12 @@ class FixedUserController {
       }
 
       // Hash password
+      logger.info('🔐 Hashing password', { passwordLength: password.length });
       const hashedPassword = await bcrypt.hash(password, 10);
+      logger.info('🔐 Password hashed', { 
+        hashedLength: hashedPassword.length,
+        hashedPrefix: hashedPassword.substring(0, 7)
+      });
 
       // Generate user ID
       const userId = uuidv4();
@@ -85,7 +97,7 @@ class FixedUserController {
       });
 
     } catch (error: any) {
-      logger.error('Registration error:', error);
+      logger.error('❌ Registration error:', error);
       res.status(500).json({
         success: false,
         message: 'Registration failed',
@@ -102,8 +114,11 @@ class FixedUserController {
     try {
       const { email, password } = req.body;
 
+      logger.info('🔐 Login attempt', { email, hasPassword: !!password });
+
       // Validate required fields
       if (!email || !password) {
+        logger.warn('❌ Login failed: missing credentials');
         return res.status(400).json({
           success: false,
           message: 'Email and password are required'
@@ -117,15 +132,31 @@ class FixedUserController {
       );
 
       if (!user) {
+        logger.warn('❌ Login failed: user not found', { email });
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password'
         });
       }
 
+      logger.info('👤 User found', { 
+        userId: user.id, 
+        email: user.email,
+        hasStoredPassword: !!user.password,
+        passwordLength: user.password?.length || 0,
+        passwordPrefix: user.password?.substring(0, 7) || 'none'
+      });
+
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      logger.info('🔑 Password verification', { 
+        isValid: isPasswordValid,
+        providedPasswordLength: password.length
+      });
+
       if (!isPasswordValid) {
+        logger.warn('❌ Login failed: invalid password', { email });
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password'
@@ -133,6 +164,7 @@ class FixedUserController {
       }
 
       // Use QRService to generate secure QR code
+      logger.info('📱 Generating QR code', { userId: user.id, formId: user.formid });
       const { qrImage } = await QRService.generateSecureQR(user.id, user.formid);
 
       logger.info('✅ User logged in successfully', { userId: user.id, email: user.email });
@@ -155,7 +187,7 @@ class FixedUserController {
       });
 
     } catch (error: any) {
-      logger.error('Login error:', error);
+      logger.error('❌ Login error:', error);
       res.status(500).json({
         success: false,
         message: 'Login failed',
