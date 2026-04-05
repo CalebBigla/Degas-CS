@@ -14,8 +14,14 @@ export async function getFormTables(req: Request, res: Response) {
   try {
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
-    // Get old forms from form_definitions
-    const oldForms = await formService.getAllForms();
+    // Get old forms from form_definitions (if table exists)
+    let oldForms: any[] = [];
+    try {
+      oldForms = await formService.getAllForms();
+    } catch (error: any) {
+      // Table might not exist - that's okay
+      logger.info('form_definitions table not found or empty - skipping old forms');
+    }
     
     // Get new forms from forms table - use lowercase column names
     const newForms = await db.all('SELECT * FROM forms ORDER BY createdat DESC');
