@@ -459,7 +459,7 @@ export const initializeDatabase = async (): Promise<void> => {
         scannedAt DATETIME DEFAULT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (formId) REFERENCES form_definitions(id) ON DELETE CASCADE
+        FOREIGN KEY (formId) REFERENCES forms(id) ON DELETE CASCADE
       )`, (err) => {
         if (err) {
           logger.error('Error creating users table:', err);
@@ -479,10 +479,10 @@ export const initializeDatabase = async (): Promise<void> => {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         link TEXT NOT NULL UNIQUE,
-        qrCode TEXT DEFAULT NULL,
-        isActive BOOLEAN DEFAULT 1,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        qrcode TEXT DEFAULT NULL,
+        isactive BOOLEAN DEFAULT 1,
+        createdat DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedat DATETIME DEFAULT CURRENT_TIMESTAMP
       )`, (err) => {
         if (err) {
           if (err.message.includes('already exists')) {
@@ -496,7 +496,7 @@ export const initializeDatabase = async (): Promise<void> => {
       });
 
       // Create indexes on forms table
-      db.run(`CREATE INDEX IF NOT EXISTS idx_forms_active ON forms(isActive)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_forms_active ON forms(isactive)`);
 
       // Create default "The Force of Grace Ministry" form if none exists
       db.get("SELECT COUNT(*) as count FROM forms WHERE name = 'The Force of Grace Ministry'", async (err, row: any) => {
@@ -521,7 +521,7 @@ export const initializeDatabase = async (): Promise<void> => {
             });
             
             db.run(
-              `INSERT INTO forms (id, name, link, qrCode, isActive, createdAt, updatedAt)
+              `INSERT INTO forms (id, name, link, qrcode, isactive, createdat, updatedat)
                VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`,
               [formId, 'The Force of Grace Ministry', registrationLink, qrCodeData],
               (err) => {
@@ -549,7 +549,7 @@ export const initializeDatabase = async (): Promise<void> => {
             });
             
             db.run(
-              `UPDATE forms SET qrCode = ?, updatedAt = datetime('now') WHERE name = 'The Force of Grace Ministry'`,
+              `UPDATE forms SET qrcode = ?, updatedat = datetime('now') WHERE name = 'The Force of Grace Ministry'`,
               [qrCodeData],
               (err) => {
                 if (err) logger.warn('Could not update QR code:', err);

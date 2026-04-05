@@ -148,7 +148,8 @@ async function initializePostgreSQL(): Promise<void> {
         scanned BOOLEAN DEFAULT false,
         scannedat TIMESTAMP DEFAULT NULL,
         createdat TIMESTAMP DEFAULT NOW(),
-        updatedat TIMESTAMP DEFAULT NOW()
+        updatedat TIMESTAMP DEFAULT NOW(),
+        FOREIGN KEY (formid) REFERENCES forms(id) ON DELETE CASCADE
       )
     `);
 
