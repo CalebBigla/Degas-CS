@@ -677,7 +677,45 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Start the server
-startServer();
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION:', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise
+  });
+  logger.error('❌ Unhandled Promise rejection:', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined
+  });
+  // Exit with error code  
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ UNCAUGHT EXCEPTION:', {
+    message: error?.message || String(error),
+    stack: error?.stack
+  });
+  logger.error('❌ Uncaught Exception:', {
+    message: error?.message || String(error),
+    stack: error?.stack
+  });
+  // Exit with error code
+  process.exit(1);
+});
+
+// Start the server with proper error handling
+(async () => {
+  try {
+    await startServer();
+    logger.info('🎉 Server started successfully');
+  } catch (error) {
+    console.error('❌ STARTUP ERROR:', error);
+    logger.error('❌ Fatal startup error:', error);
+    process.exit(1);
+  }
+})();
 
 export default app;
