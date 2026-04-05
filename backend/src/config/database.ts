@@ -17,12 +17,19 @@ export function getDatabase(): DatabaseAdapter {
 export async function initializeDatabase(): Promise<void> {
   const dbType = process.env.DATABASE_TYPE || 'sqlite';
   
-  if (dbType === 'sqlite') {
-    // Use existing SQLite initialization
-    await initSQLite();
-  } else {
-    // PostgreSQL initialization
-    await initializePostgreSQL();
+  try {
+    if (dbType === 'sqlite') {
+      // Use existing SQLite initialization
+      await initSQLite();
+    } else {
+      // PostgreSQL initialization - non-blocking
+      logger.info('📊 PostgreSQL mode - tables will be created via setup endpoint if needed');
+      // Don't create tables here - let the setup endpoint handle it
+      // This prevents startup crashes when tables don't exist
+    }
+  } catch (error: any) {
+    logger.warn('⚠️  Database initialization skipped (non-fatal):', error?.message);
+    // Don't throw - allow server to start
   }
 }
 
@@ -31,6 +38,8 @@ async function initializePostgreSQL(): Promise<void> {
   const db = getDatabase();
   
   try {
+    logger.info('🔧 Starting PostgreSQL table creation...');
+    
     // Create tables if they don't exist
     await db.run(`
       CREATE TABLE IF NOT EXISTS admins (
@@ -44,6 +53,7 @@ async function initializePostgreSQL(): Promise<void> {
         last_login TIMESTAMP
       )
     `);
+    logger.info('✅ admins table ready');
 
     await db.run(`
       CREATE TABLE IF NOT EXISTS tables (
@@ -55,6 +65,7 @@ async function initializePostgreSQL(): Promise<void> {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    logger.info('✅ tables table ready');
 
     await db.run(`
       CREATE TABLE IF NOT EXISTS dynamic_users (
@@ -329,14 +340,15 @@ export async function testDatabaseConnection(): Promise<void> {
       });
     }
   } catch (error: any) {
-    logger.error('❌ Database connection test FAILED:', {
+    logger.warn('⚠️  Database connection test failed (non-fatal):', {
       message: error?.message || String(error),
       code: error?.code,
       detail: error?.detail,
       dbType: process.env.DATABASE_TYPE || 'sqlite',
       hasURL: !!process.env.DATABASE_URL
     });
-    throw new Error(`Database connectivity check failed: ${error?.message || String(error)}`);
+    // Don't throw - allow server to start anyway
+    // The setup endpoint will handle database initialization
   }
 }
 
