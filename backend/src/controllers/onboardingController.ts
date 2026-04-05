@@ -145,12 +145,7 @@ class OnboardingController {
       // ALSO insert into dynamic_users table for QR system compatibility
       // This ensures QR codes can find users regardless of which table they're in
       const dynamicUserId = this.generateUUID();
-      await db.run(
-        `INSERT INTO dynamic_users (id, table_id, uuid, data, photo_url, created_at, updated_at)
-         SELECT ?, (SELECT id FROM tables WHERE name = ?), ?, ?, ?, datetime('now'), datetime('now')
-         WHERE NOT EXISTS (SELECT 1 FROM tables WHERE name = ?)`,
-        [dynamicUserId, targetTable, userUuid, JSON.stringify(dynamicData), photoUrl, targetTable]
-      );
+      const now = new Date().toISOString();
       
       // If table doesn't exist in tables registry, create it
       const tableExists = await db.get(`SELECT id FROM tables WHERE name = ?`, [targetTable]);
@@ -158,23 +153,23 @@ class OnboardingController {
         const tableId = this.generateUUID();
         await db.run(
           `INSERT INTO tables (id, name, description, schema, created_at, updated_at)
-           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [tableId, targetTable, `Form-based table: ${form.form_name}`, JSON.stringify(form.fields || [])]
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [tableId, targetTable, `Form-based table: ${form.form_name}`, JSON.stringify(form.fields || []), now, now]
         );
         logger.info(`Created table registry entry for ${targetTable}`);
         
         // Now insert into dynamic_users with the new table_id
         await db.run(
           `INSERT INTO dynamic_users (id, table_id, uuid, data, photo_url, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [dynamicUserId, tableId, userUuid, JSON.stringify(dynamicData), photoUrl]
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [dynamicUserId, tableId, userUuid, JSON.stringify(dynamicData), photoUrl, now, now]
         );
       } else {
         // Table exists, insert into dynamic_users
         await db.run(
           `INSERT INTO dynamic_users (id, table_id, uuid, data, photo_url, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [dynamicUserId, tableExists.id, userUuid, JSON.stringify(dynamicData), photoUrl]
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [dynamicUserId, tableExists.id, userUuid, JSON.stringify(dynamicData), photoUrl, now, now]
         );
       }
       
@@ -427,27 +422,28 @@ class OnboardingController {
       
       // ALSO insert into dynamic_users table for QR system compatibility
       const dynamicUserId = this.generateUUID();
+      const now = new Date().toISOString();
       const tableExists = await db.get(`SELECT id FROM tables WHERE name = ?`, [targetTable]);
       
       if (!tableExists) {
         const tableId = this.generateUUID();
         await db.run(
           `INSERT INTO tables (id, name, description, schema, created_at, updated_at)
-           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [tableId, targetTable, `Form-based table: ${form.form_name}`, JSON.stringify(form.fields || [])]
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [tableId, targetTable, `Form-based table: ${form.form_name}`, JSON.stringify(form.fields || []), now, now]
         );
         logger.info(`Created table registry entry for ${targetTable}`);
         
         await db.run(
           `INSERT INTO dynamic_users (id, table_id, uuid, data, photo_url, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [dynamicUserId, tableId, userUuid, JSON.stringify(dynamicData), photoUrl]
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [dynamicUserId, tableId, userUuid, JSON.stringify(dynamicData), photoUrl, now, now]
         );
       } else {
         await db.run(
           `INSERT INTO dynamic_users (id, table_id, uuid, data, photo_url, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [dynamicUserId, tableExists.id, userUuid, JSON.stringify(dynamicData), photoUrl]
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [dynamicUserId, tableExists.id, userUuid, JSON.stringify(dynamicData), photoUrl, now, now]
         );
       }
       
