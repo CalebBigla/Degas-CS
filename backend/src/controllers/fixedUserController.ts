@@ -428,15 +428,21 @@ class FixedUserController {
         [formId]
       );
 
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
+      
       // Get scanned users
       const scannedResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 1',
+        dbType === 'sqlite'
+          ? 'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 1'
+          : 'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = true',
         [formId]
       );
 
       // Get not scanned users
       const notScannedResult = await db.get(
-        'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 0',
+        dbType === 'sqlite'
+          ? 'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = 0'
+          : 'SELECT COUNT(*) as count FROM users WHERE formid = ? AND scanned = false',
         [formId]
       );
 

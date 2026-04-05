@@ -62,10 +62,11 @@ export class QRService {
         qrDataLength: qrData?.length
       });
       
+      const now = new Date().toISOString();
       await db.run(
         `INSERT INTO qr_codes (id, user_id, table_id, qr_data, qr_payload, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [qrId, userId, finalTableId, qrData, data, true]
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [qrId, userId, finalTableId, qrData, data, true, now]
       );
 
       logger.info('QR code generated and stored', { qrId, userId, tableId: finalTableId });

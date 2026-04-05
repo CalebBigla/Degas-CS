@@ -300,12 +300,16 @@ class UserService {
    */
   async getFormAnalytics(formId: string): Promise<any> {
     return new Promise((resolve, reject) => {
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
+      const scannedCondition = dbType === 'sqlite' ? 'scanned = 1' : 'scanned = true';
+      const notScannedCondition = dbType === 'sqlite' ? 'scanned = 0' : 'scanned = false';
+      
       db.get(
         `SELECT 
           COUNT(*) as totalUsers,
-          SUM(CASE WHEN scanned = 1 THEN 1 ELSE 0 END) as scannedUsers,
-          SUM(CASE WHEN scanned = 0 THEN 1 ELSE 0 END) as notScannedUsers
-         FROM users WHERE formId = ?`,
+          SUM(CASE WHEN ${scannedCondition} THEN 1 ELSE 0 END) as scannedUsers,
+          SUM(CASE WHEN ${notScannedCondition} THEN 1 ELSE 0 END) as notScannedUsers
+         FROM users WHERE formid = ?`,
         [formId],
         (err, row: any) => {
           if (err) {
