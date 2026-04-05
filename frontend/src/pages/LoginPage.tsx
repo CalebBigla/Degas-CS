@@ -102,16 +102,6 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600 mb-2">Demo Credentials:</p>
-            <div className="text-xs text-gray-500 space-y-1">
-              <div>Core Admin: admin@degas.com / admin123</div>
-              <div>Old Admin: admin / admin123</div>
-              <div>Guard: guard / guard123</div>
-            </div>
-          </div>
-
           {/* Registration link */}
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">

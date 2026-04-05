@@ -186,12 +186,6 @@ export function RegisterPage() {
             >
               Go to Login
             </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
-            >
-              Register Another User
-            </button>
           </div>
         </div>
       </div>
