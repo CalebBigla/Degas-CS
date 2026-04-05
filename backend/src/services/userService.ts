@@ -1,4 +1,4 @@
-import { db } from '../config/sqlite';
+import { db } from '../config/database';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../config/logger';

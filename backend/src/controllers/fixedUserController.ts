@@ -68,10 +68,11 @@ class FixedUserController {
       const userId = uuidv4();
 
       // Insert user into database
+      const now = new Date().toISOString();
       await db.run(
         `INSERT INTO users (id, name, phone, email, address, password, formid, scanned, scannedat, createdat, updatedat)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, datetime('now'), datetime('now'))`,
-        [userId, name, phone, email, address, hashedPassword, formId]
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, name, phone, email, address, hashedPassword, formId, false, null, now, now]
       );
 
       logger.info('✅ User registered successfully', { userId, email, formId });
@@ -308,18 +309,20 @@ class FixedUserController {
       }
 
       const scannedAt = new Date().toISOString();
+      const updatedAt = new Date().toISOString();
 
       // Mark as scanned
       await db.run(
-        `UPDATE users SET scanned = 1, scannedat = ?, updatedat = datetime('now') WHERE id = ?`,
-        [scannedAt, userId]
+        `UPDATE users SET scanned = ?, scannedat = ?, updatedat = ? WHERE id = ?`,
+        [true, scannedAt, updatedAt, userId]
       );
 
       // Create access log entry
+      const now = new Date().toISOString();
       await db.run(
         `INSERT INTO access_logs (user_id, table_id, access_granted, scan_timestamp, ip_address, user_agent)
-         VALUES (?, ?, 1, datetime('now'), ?, ?)`,
-        [userId, formId, req.ip || req.connection.remoteAddress, req.get('user-agent')]
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, formId, true, now, req.ip || req.connection.remoteAddress, req.get('user-agent')]
       );
 
       logger.info('✅ User scanned successfully and access logged', { userId, formId, userName: user.name });
@@ -489,11 +492,12 @@ class FixedUserController {
       }
 
       // Update user
+      const updatedAt = new Date().toISOString();
       await db.run(
         `UPDATE users 
-         SET name = ?, phone = ?, email = ?, address = ?, updatedat = datetime('now')
+         SET name = ?, phone = ?, email = ?, address = ?, updatedat = ?
          WHERE id = ?`,
-        [name, phone, email, address, userId]
+        [name, phone, email, address, updatedAt, userId]
       );
 
       logger.info('✅ User updated successfully', { userId, email });
