@@ -14,19 +14,28 @@ export async function getFormTables(req: Request, res: Response) {
   try {
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
+    logger.info(`🔍 [getFormTables] Starting - Database Type: ${dbType}`);
+    
     // Get old forms from form_definitions (if table exists)
     let oldForms: any[] = [];
     try {
       oldForms = await formService.getAllForms();
+      logger.info(`✅ [getFormTables] Fetched ${oldForms.length} old forms from form_definitions`);
     } catch (error: any) {
+      logger.warn(`⚠️  [getFormTables] Could not fetch old forms:`, {
+        error: error.message,
+        code: error.code,
+        detail: error.detail
+      });
       // Table might not exist - that's okay
-      logger.info('form_definitions table not found or empty - skipping old forms');
     }
     
     // Get new forms from forms table - use lowercase column names
+    logger.info(`📊 [getFormTables] Querying forms table...`);
     const newForms = await db.all('SELECT * FROM forms ORDER BY createdat DESC');
+    logger.info(`✅ [getFormTables] Fetched ${newForms.length} forms from forms table`);
     
-    logger.info(`📊 Found ${oldForms.length} old forms and ${newForms.length} new forms`);
+    logger.info(`📊 [getFormTables] Found ${oldForms.length} old forms and ${newForms.length} new forms`);
     
     // Map old forms to table format
     const oldFormTables = await Promise.all(
@@ -138,14 +147,23 @@ export async function getFormTables(req: Request, res: Response) {
       data: allFormTables
     });
   } catch (error: any) {
-    logger.error('❌ Error getting form tables:', {
-      error: error.message,
-      stack: error.stack
+    logger.error('🔥 [getFormTables] BACKEND ERROR:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      sql: error.sql ? error.sql.substring(0, 200) : undefined,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      stack: error.stack?.substring(0, 500)
     });
     res.status(500).json({
       success: false,
       message: 'Failed to get form tables',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        code: error.code,
+        sql: error.sql ? error.sql.substring(0, 200) : undefined
+      } : undefined
     });
   }
 }
@@ -274,15 +292,27 @@ export async function getFormTableUsers(req: Request, res: Response) {
       }
     });
   } catch (error: any) {
-    logger.error('❌ Error getting form table users:', {
-      error: error.message,
-      stack: error.stack,
-      formId: req.params.formId
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    logger.error('🔥 [getFormTableUsers] BACKEND ERROR:', {
+      formId: req.params.formId,
+      dbType: dbType,
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      sql: error.sql ? error.sql.substring(0, 200) : undefined,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      stack: error.stack?.substring(0, 500)
     });
     res.status(500).json({
       success: false,
       message: 'Failed to get form table users',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        code: error.code,
+        sql: error.sql ? error.sql.substring(0, 200) : undefined,
+        formId: req.params.formId
+      } : undefined
     });
   }
 }

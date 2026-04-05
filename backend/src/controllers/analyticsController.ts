@@ -11,6 +11,9 @@ const isMockMode = (): boolean => {
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
   try {
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    logger.info(`📊 [getDashboardStats] Starting - Database Type: ${dbType}`);
+    
     if (isMockMode()) {
       logger.warn('🚨 MOCK MODE: Returning mock dashboard stats');
       
@@ -37,6 +40,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     }
 
     // Get real-time metrics from dashboard service
+    logger.info(`✅ [getDashboardStats] Fetching attendance overview`);
     const overview = await dashboardService.getAttendanceOverview();
 
     // Map to expected DashboardStats response format
@@ -54,15 +58,24 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
       }))
     };
 
+    logger.info(`✅ [getDashboardStats] Success - ${dashboardStats.totalUsers} users, ${dashboardStats.todayScans} scans`);
+
     res.json({
       success: true,
       data: dashboardStats
     });
 
   } catch (error) {
-    logger.error('❌ Get dashboard stats error:', {
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    logger.error('🔥 [getDashboardStats] BACKEND ERROR:', {
+      dbType: dbType,
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+      errno: (error as any)?.errno,
+      sqlState: (error as any)?.sqlState,
+      sql: (error as any)?.sql ? String((error as any).sql).substring(0, 200) : undefined,
+      stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined
     });
     
     // Return fallback stats on error
@@ -77,7 +90,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       data: fallbackStats,
-      details: error instanceof Error ? error.message : String(error)
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     });
   }
 };

@@ -11,7 +11,10 @@
     "migrate": "ts-node src/scripts/migrate.ts",
     "seed": "ts-node src/scripts/seed.ts",
     "db:migrate": "node dist/scripts/migrate.js",
-    "db:seed": "node dist/scripts/seed.js"
+    "db:seed": "node dist/scripts/seed.js",
+    "migrate:seed": "node scripts/migrate-seed.js",
+    "migrate:validate": "node scripts/migrate-validate.js",
+    "migrate:status": "node scripts/migration-steps-3-10.js"
   },
   "dependencies": {
     "@gatekeeper/shared": "^1.0.0",

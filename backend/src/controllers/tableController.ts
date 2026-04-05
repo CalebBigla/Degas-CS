@@ -382,16 +382,23 @@ export const getTables = async (req: AuthRequest, res: Response) => {
   try {
     // PRODUCTION-SAFE: Database-only table retrieval
     const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    logger.info(`📊 [getTables] Starting - Database Type: ${dbType}`);
     let tables;
     
     try {
       tables = await db.all('SELECT * FROM tables ORDER BY created_at DESC');
+      logger.info(`✅ [getTables] Fetched ${tables.length} tables from database`);
     } catch (dbErr) {
-      logger.error('❌ Database query error in getTables:', {
+      logger.error('🔥 [getTables] Database query error:', {
+        dbType: dbType,
         message: dbErr instanceof Error ? dbErr.message : String(dbErr),
         code: (dbErr as any)?.code,
         detail: (dbErr as any)?.detail,
-        hint: (dbErr as any)?.hint
+        hint: (dbErr as any)?.hint,
+        errno: (dbErr as any)?.errno,
+        sqlState: (dbErr as any)?.sqlState,
+        sql: (dbErr as any)?.sql ? String((dbErr as any).sql).substring(0, 200) : undefined
       });
       
       return res.status(500).json({
@@ -399,7 +406,8 @@ export const getTables = async (req: AuthRequest, res: Response) => {
         error: 'Failed to fetch tables from database',
         details: process.env.NODE_ENV === 'development' ? {
           message: dbErr instanceof Error ? dbErr.message : String(dbErr),
-          code: (dbErr as any)?.code
+          code: (dbErr as any)?.code,
+          dbType: dbType
         } : undefined
       });
     }
@@ -466,15 +474,25 @@ export const getTables = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('❌ Get tables error:', {
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    logger.error('🔥 [getTables] BACKEND ERROR:', {
+      dbType: dbType,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      code: (error as any)?.code
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+      errno: (error as any)?.errno,
+      sqlState: (error as any)?.sqlState,
+      sql: (error as any)?.sql ? String((error as any).sql).substring(0, 200) : undefined,
+      stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined
     });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch tables',
-      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      details: process.env.NODE_ENV === 'development' ? {
+        message: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code,
+        dbType: dbType
+      } : undefined
     });
   }
 };

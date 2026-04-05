@@ -151,7 +151,7 @@ app.get('/api/diagnostic', async (req, res) => {
         if (dbType === 'sqlite') {
           countResult = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
         } else {
-          countResult = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+          countResult = await db.get(`SELECT COUNT(*) as count FROM "${tableName}"`);
         }
         
         diagnostics.tables[tableName] = {
@@ -179,6 +179,54 @@ app.get('/api/diagnostic', async (req, res) => {
       diagnostics.testQuery = {
         error: error?.message || String(error)
       };
+    }
+
+    // PostgreSQL-specific diagnostics (only if using PostgreSQL)
+    if (dbType === 'postgresql') {
+      try {
+        // Check if information_schema is accessible
+        const schemasResult = await db.all(
+          `SELECT table_name, table_schema FROM information_schema.tables 
+           WHERE table_schema != 'pg_catalog' AND table_schema != 'information_schema'
+           ORDER BY table_name`
+        );
+        
+        diagnostics.postgresqlDiagnostics = {
+          informationSchemaAccessible: true,
+          discoveredTables: schemasResult.map((t: any) => ({
+            name: t.table_name,
+            schema: t.table_schema
+          }))
+        };
+
+        // Check columns for each table
+        const columnsByTable: any = {};
+        for (const table of requiredTables) {
+          try {
+            const columnsResult = await db.all(
+              `SELECT column_name, data_type, is_nullable 
+               FROM information_schema.columns 
+               WHERE table_name = ?
+               ORDER BY ordinal_position`,
+              [table]
+            );
+            columnsByTable[table] = columnsResult.map((c: any) => ({
+              name: c.column_name,
+              type: c.data_type,
+              nullable: c.is_nullable === 'YES'
+            }));
+          } catch (err) {
+            columnsByTable[table] = { error: (err as any)?.message };
+          }
+        }
+        diagnostics.postgresqlDiagnostics.columnsByTable = columnsByTable;
+
+      } catch (error: any) {
+        diagnostics.postgresqlDiagnostics = {
+          informationSchemaAccessible: false,
+          error: error?.message || String(error)
+        };
+      }
     }
     
     res.json(diagnostics);
