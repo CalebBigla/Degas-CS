@@ -106,7 +106,7 @@ export function LoginPage() {
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <a href="/register" className="text-emerald hover:text-emerald/80 font-medium">
+              <a href="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" className="text-emerald hover:text-emerald/80 font-medium">
                 Register here
               </a>
             </p>
