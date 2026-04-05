@@ -35,7 +35,7 @@ function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register" element={<Navigate to="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" replace />} />
         <Route path="/register/:formId" element={<RegisterPage />} />
         <Route path="/scanner" element={<ScannerPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

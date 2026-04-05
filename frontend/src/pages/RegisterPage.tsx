@@ -121,7 +121,7 @@ export function RegisterPage() {
       
       // Handle specific error codes with proper error messages
       if (error.response?.status === 409) {
-        setError('Email already registered - please use a different email');
+        setError('This email is already registered. Please try logging in instead. If you forgot your password, contact the administrator.');
       } else if (error.response?.status === 400) {
         const errMsg = error.response?.data?.message || error.response?.data?.errors?.[0] || 'Please fill in all required fields correctly';
         setError(errMsg);
@@ -206,8 +206,17 @@ export function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="bg-gray-800 rounded-lg p-8 border border-gray-700">
           {error && (
-            <div className="mb-4 p-3 bg-red-900/50 border border-red-600 rounded text-red-200">
-              {error}
+            <div className="mb-4 p-4 bg-red-900/50 border border-red-600 rounded">
+              <p className="text-red-200 mb-2">{error}</p>
+              {error.includes('already registered') && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="mt-2 text-sm text-red-300 hover:text-red-100 underline"
+                >
+                  Go to Login Page
+                </button>
+              )}
             </div>
           )}
 
