@@ -51,7 +51,8 @@ export function RegisterPage() {
           { field_name: 'phone', field_label: 'Phone Number', field_type: 'tel', is_required: true, placeholder: '+1234567890' },
           { field_name: 'email', field_label: 'Email Address', field_type: 'email', is_required: true, placeholder: 'your@email.com' },
           { field_name: 'address', field_label: 'Address', field_type: 'text', is_required: true, placeholder: 'Your address' },
-          { field_name: 'password', field_label: 'Password', field_type: 'password', is_required: true, placeholder: 'Create a password' }
+          { field_name: 'password', field_label: 'Password', field_type: 'password', is_required: true, placeholder: 'Create a password' },
+          { field_name: 'photo', field_label: 'Profile Photo', field_type: 'camera', is_required: true, placeholder: 'Capture or upload a photo' }
         ]
       });
     } catch (error: any) {
