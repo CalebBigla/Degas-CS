@@ -253,22 +253,25 @@ export function UserModal({ isOpen, onClose, user, onSave, tableSchema }: UserMo
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Photo Upload */}
-          <div className="flex flex-col items-center space-y-4 pb-4 border-b border-gray-200">
-            <div className="relative">
+          {/* Photo Upload Section */}
+          <div className="flex flex-col items-center space-y-4 pb-6 border-b-2 border-gray-200 bg-blue-50 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-800">Profile Photo</h3>
+            <p className="text-sm text-gray-600 text-center">Upload or capture a photo for this user</p>
+            
+            <div className="relative group">
               {photoPreview ? (
                 <img
                   src={photoPreview}
                   alt="User photo"
-                  className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-emerald shadow-lg"
                 />
               ) : (
-                <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-200">
-                  <UserIcon className="h-12 w-12 text-gray-400" />
+                <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center border-4 border-dashed border-gray-400 shadow-lg">
+                  <UserIcon className="h-16 w-16 text-gray-400" />
                 </div>
               )}
-              <label className="absolute bottom-0 right-0 bg-emerald text-white p-2 rounded-full cursor-pointer hover:bg-emerald/90">
-                <Upload className="h-4 w-4" />
+              <label className="absolute bottom-0 right-0 bg-emerald text-white p-3 rounded-full cursor-pointer hover:bg-emerald/90 shadow-lg transition-transform transform hover:scale-110">
+                <Upload className="h-5 w-5" />
                 <input
                   type="file"
                   accept="image/*"
@@ -277,7 +280,14 @@ export function UserModal({ isOpen, onClose, user, onSave, tableSchema }: UserMo
                 />
               </label>
             </div>
-            <p className="text-sm text-gray-600">Click to upload photo</p>
+            
+            <div className="text-center">
+              <p className="text-sm font-medium text-emerald">Click the camera icon or the photo to upload</p>
+              <p className="text-xs text-gray-600 mt-1">JPG, PNG, WebP or GIF (max 5MB)</p>
+              {photoPreview && (
+                <p className="text-xs text-emerald font-medium mt-2">✓ Photo ready</p>
+              )}
+            </div>
           </div>
 
           {/* Dynamic Form Fields */}
