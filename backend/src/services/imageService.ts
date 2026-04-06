@@ -144,14 +144,39 @@ export class ImageService {
    */
   static async saveBase64Image(base64Data: string): Promise<string> {
     try {
-      // Extract base64 data (remove data:image/...;base64, prefix)
-      const matches = base64Data.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
-      
-      if (!matches || matches.length !== 3) {
-        throw new Error('Invalid base64 image format');
+      // Validate input
+      if (!base64Data || typeof base64Data !== 'string') {
+        logger.error('Invalid base64 input: empty or not a string');
+        throw new Error('Invalid image data provided');
       }
 
-      const imageBuffer = Buffer.from(matches[2], 'base64');
+      // Extract base64 data (remove data:image/...;base64, prefix)
+      // Updated regex to handle various image types including svg+xml
+      const matches = base64Data.match(/^data:image\/([a-zA-Z0-9+\-]+);base64,(.+)$/);
+      
+      if (!matches || matches.length !== 3) {
+        logger.error('Base64 format validation failed', {
+          dataStart: base64Data.substring(0, 50),
+          dataLength: base64Data.length
+        });
+        throw new Error('Invalid base64 image format. Expected: data:image/TYPE;base64,DATA');
+      }
+
+      const imageType = matches[1];
+      const base64Content = matches[2];
+
+      if (!base64Content || base64Content.trim().length === 0) {
+        logger.error('Base64 content is empty');
+        throw new Error('Base64 image data is empty');
+      }
+
+      let imageBuffer;
+      try {
+        imageBuffer = Buffer.from(base64Content, 'base64');
+      } catch (bufferError) {
+        logger.error('Failed to decode base64:', bufferError);
+        throw new Error('Failed to decode image data');
+      }
       const filename = `${uuidv4()}.webp`;
 
       // Process image: resize, optimize, and convert to WebP

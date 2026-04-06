@@ -92,21 +92,39 @@ class FixedUserController {
       // Handle photo upload (REQUIRED)
       let profileImageUrl: string | null = null;
       try {
-        logger.info('📷 Processing profile image');
+        logger.info('📷 Processing profile image', { 
+          photoType: typeof photo,
+          photoLength: photo?.toString().length,
+          photoStart: photo?.toString().substring(0, 50)
+        });
         
         if (typeof photo === 'string' && photo.startsWith('data:image')) {
           // Base64 image from camera or file input
-          profileImageUrl = await ImageService.saveBase64Image(photo);
-          logger.info('✅ Profile image uploaded', { imageUrl: profileImageUrl });
-        } else {
-          logger.warn('❌ Invalid photo format');
+          try {
+            profileImageUrl = await ImageService.saveBase64Image(photo);
+            logger.info('✅ Profile image uploaded', { imageUrl: profileImageUrl });
+          } catch (serviceError: any) {
+            logger.error('❌ ImageService error:', serviceError.message);
+            return res.status(400).json({
+              success: false,
+              message: 'Image upload failed: ' + serviceError.message
+            });
+          }
+        } else if (photo) {
+          logger.warn('❌ Invalid photo format', { photoType: typeof photo, photoStart: photo?.toString().substring(0, 50) });
           return res.status(400).json({
             success: false,
-            message: 'Invalid image format. Please provide a valid image.'
+            message: 'Invalid image format. Please provide a valid image as base64 data URL.'
+          });
+        } else {
+          logger.warn('❌ Photo is empty or undefined');
+          return res.status(400).json({
+            success: false,
+            message: 'Profile image is required. Please upload or capture a photo.'
           });
         }
       } catch (imageError: any) {
-        logger.error('❌ Image upload failed:', imageError.message);
+        logger.error('❌ Unexpected image processing error:', imageError);
         return res.status(500).json({
           success: false,
           message: 'Image upload failed. Please try again.'
