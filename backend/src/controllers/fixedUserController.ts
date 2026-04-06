@@ -119,6 +119,7 @@ class FixedUserController {
           success: false,
           message: 'Failed to process image. Please try again.'
         });
+      }
 
       // Insert user into database
       const now = new Date().toISOString();
