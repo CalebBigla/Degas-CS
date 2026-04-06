@@ -147,10 +147,16 @@ async function initializePostgreSQL(): Promise<void> {
         formid UUID NOT NULL,
         scanned BOOLEAN DEFAULT false,
         scannedat TIMESTAMP DEFAULT NULL,
+        profileImageUrl TEXT NOT NULL,
         createdat TIMESTAMP DEFAULT NOW(),
         updatedat TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (formid) REFERENCES forms(id) ON DELETE CASCADE
       )
+    `);
+
+    // Add profileImageUrl column if it doesn't exist (for existing databases)
+    await db.run(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS profileImageUrl TEXT NOT NULL DEFAULT ''
     `);
 
     // Create indexes on users table for performance
