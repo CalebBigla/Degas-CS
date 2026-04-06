@@ -457,6 +457,7 @@ export const initializeDatabase = async (): Promise<void> => {
         formId TEXT NOT NULL,
         scanned BOOLEAN DEFAULT 0,
         scannedAt DATETIME DEFAULT NULL,
+        profileImageUrl TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (formId) REFERENCES forms(id) ON DELETE CASCADE
@@ -465,6 +466,15 @@ export const initializeDatabase = async (): Promise<void> => {
           logger.error('Error creating users table:', err);
         } else {
           logger.info('Users table ready (Fixed Schema)');
+        }
+      });
+
+      // Add profileImageUrl column if it doesn't exist (for existing databases with this schema)
+      db.run(`ALTER TABLE users ADD COLUMN profileImageUrl TEXT`, (alterErr) => {
+        if (alterErr && !alterErr.message.includes('duplicate column')) {
+          logger.warn('Could not add profileImageUrl column to users table:', alterErr.message);
+        } else if (!alterErr) {
+          logger.info('Added profileImageUrl column to users table');
         }
       });
 

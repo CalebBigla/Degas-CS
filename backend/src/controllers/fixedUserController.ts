@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database';
 import logger from '../config/logger';
 import { QRService } from '../services/qrService';
+import { ImageService } from '../services/imageService';
 
 /**
  * Fixed User Schema Controller
@@ -17,9 +18,9 @@ class FixedUserController {
   async register(req: Request, res: Response) {
     try {
       const { formId } = req.params;
-      const { name, phone, email, address, password } = req.body;
+      const { name, phone, email, address, password, photo } = req.body;
 
-      logger.info('📝 Registration attempt', { formId, email, name, hasPassword: !!password });
+      logger.info('📝 Registration attempt', { formId, email, name, hasPassword: !!password, hasPhoto: !!photo });
 
       // Validate required fields
       if (!name || !phone || !email || !address || !password) {
@@ -27,6 +28,15 @@ class FixedUserController {
         return res.status(400).json({
           success: false,
           message: 'All fields are required: name, phone, email, address, password'
+        });
+      }
+
+      // Validate photo is provided (REQUIRED)
+      if (!photo) {
+        logger.warn('❌ Registration failed: photo is required');
+        return res.status(400).json({
+          success: false,
+          message: 'Profile image is required. Please upload or capture a photo.'
         });
       }
 
@@ -79,21 +89,53 @@ class FixedUserController {
       // Generate user ID
       const userId = uuidv4();
 
+      // Handle photo upload (REQUIRED)
+      let profileImageUrl: string | null = null;
+      try {
+        logger.info('📷 Processing profile image');
+        
+        if (typeof photo === 'string' && photo.startsWith('data:image')) {
+          // Base64 image from camera or file input
+          profileImageUrl = await ImageService.saveBase64Image(photo);
+          logger.info('✅ Profile image uploaded', { imageUrl: profileImageUrl });
+        } else {
+          logger.warn('❌ Invalid photo format');
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid image format. Please provide a valid image.'
+          });
+        }
+      } catch (imageError: any) {
+        logger.error('❌ Image upload failed:', imageError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Image upload failed. Please try again.'
+        });
+      }
+
+      if (!profileImageUrl) {
+        logger.error('❌ Profile image URL is missing after upload');
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to process image. Please try again.'
+        });
+
       // Insert user into database
       const now = new Date().toISOString();
       await db.run(
-        `INSERT INTO users (id, name, phone, email, address, password, formid, scanned, scannedat, createdat, updatedat)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, name, phone, email, address, hashedPassword, formId, false, null, now, now]
+        `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, profileImageUrl, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, name, phone, email, address, hashedPassword, formId, false, null, profileImageUrl, now, now]
       );
 
-      logger.info('✅ User registered successfully', { userId, email, formId });
+      logger.info('✅ User registered successfully', { userId, email, formId, hasProfileImage: !!profileImageUrl });
 
       // Return success response
       res.status(201).json({
         success: true,
         userId,
-        formId
+        formId,
+        profileImageUrl: profileImageUrl || undefined
       });
 
     } catch (error: any) {
@@ -127,7 +169,7 @@ class FixedUserController {
 
       // Find user by email
       const user = await db.get(
-        'SELECT id, name, phone, email, address, password, formid, scanned, scannedat FROM users WHERE email = ?',
+        'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE email = ?',
         [email]
       );
 
@@ -190,7 +232,8 @@ class FixedUserController {
           email: user.email,
           address: user.address,
           scanned: user.scanned,
-          scannedAt: user.scannedat
+          scannedAt: user.scannedat,
+          profileImageUrl: user.profileImageUrl || undefined
         }
       });
 
@@ -221,10 +264,10 @@ class FixedUserController {
 
       // Get users (excluding passwords)
       const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, scannedat, createdat, updatedat
+        `SELECT id, name, phone, email, address, scanned, scannedAt, profileImageUrl, createdAt, updatedAt
          FROM users
-         WHERE formid = ?
-         ORDER BY createdat DESC`,
+         WHERE formId = ?
+         ORDER BY createdAt DESC`,
         [formId]
       );
 

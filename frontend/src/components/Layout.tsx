@@ -32,7 +32,7 @@ export function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', href: `${pathPrefix}/dashboard`, icon: LayoutDashboard, external: false },
     { name: 'Tables', href: `${pathPrefix}/tables`, icon: Users, external: false },
     { name: 'Forms', href: `${pathPrefix}/forms`, icon: FileText, external: false },
-    { name: 'Attendance', href: `${pathPrefix}/attendance`, icon: BarChart3, external: false },
+    // { name: 'Attendance', href: `${pathPrefix}/attendance`, icon: BarChart3, external: false },
     { name: 'Scanner', href: '/scanner.html', icon: ScanLine, external: true },
     { name: 'Access Logs', href: `${pathPrefix}/access-logs`, icon: FileText, external: false },
     { name: 'Analytics', href: `${pathPrefix}/analytics`, icon: BarChart3, external: false },

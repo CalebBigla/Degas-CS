@@ -92,13 +92,21 @@ export function RegisterPage() {
         return;
       }
 
+      // Validate photo is provided (REQUIRED)
+      if (!photo) {
+        setError('Profile image is required. Please upload or capture a photo before submitting.');
+        setSubmitting(false);
+        return;
+      }
+
       // Register with fixed schema endpoint
       const response = await api.post(`/form/register/${formId}`, {
         name: formData.name,
         phone: formData.phone,
         email: formData.email,
         address: formData.address,
-        password: formData.password
+        password: formData.password,
+        photo: formData.photo
       });
       
       console.log('✅ Registration response:', response.status, response.data);
@@ -269,6 +277,11 @@ export function RegisterPage() {
                   </select>
                 ) : field.field_type === 'camera' || field.field_type === 'file' ? (
                   <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <label className="text-sm font-medium text-gray-300">Profile Photo</label>
+                      <span className="text-red-500 font-bold">*</span>
+                      <span className="text-xs text-red-400">(Required)</span>
+                    </div>
                     <input
                       type="file"
                       accept="image/*"
@@ -279,13 +292,17 @@ export function RegisterPage() {
                     />
                     <label
                       htmlFor={field.field_name}
-                      className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white cursor-pointer hover:bg-gray-600"
+                      className={`flex items-center justify-center gap-2 w-full px-3 py-2 border rounded text-white cursor-pointer transition ${
+                        photo
+                          ? 'bg-green-700 border-green-600 hover:bg-green-600'
+                          : 'bg-gray-700 border-gray-600 hover:bg-gray-600'
+                      }`}
                     >
                       {field.field_type === 'camera' ? <Camera size={20} /> : <Upload size={20} />}
-                      {photo ? 'Change Photo' : field.placeholder || 'Upload Photo'}
+                      {photo ? '✓ Photo Added' : field.placeholder || 'Upload Photo'}
                     </label>
                     {photo && (
-                      <img src={photo} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded" />
+                      <img src={photo} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded border-2 border-green-500" />
                     )}
                   </div>
                 ) : (
@@ -304,10 +321,11 @@ export function RegisterPage() {
           <div className="mt-6 flex gap-3">
             <button
               type="submit"
-              disabled={submitting}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition"
+              disabled={submitting || !photo}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition"
+              title={!photo ? 'Please upload a photo to continue' : ''}
             >
-              {submitting ? 'Registering...' : 'Register'}
+              {submitting ? 'Registering...' : !photo ? 'Upload Photo First' : 'Register'}
             </button>
             <button
               type="button"
