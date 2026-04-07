@@ -22,14 +22,13 @@ export async function initializeDatabase(): Promise<void> {
       // Use existing SQLite initialization
       await initSQLite();
     } else {
-      // PostgreSQL initialization - non-blocking
-      logger.info('📊 PostgreSQL mode - tables will be created via setup endpoint if needed');
-      // Don't create tables here - let the setup endpoint handle it
-      // This prevents startup crashes when tables don't exist
+      // PostgreSQL initialization - run migrations
+      logger.info('📊 PostgreSQL mode - running migrations...');
+      await initializePostgreSQL();
     }
   } catch (error: any) {
-    logger.warn('⚠️  Database initialization skipped (non-fatal):', error?.message);
-    // Don't throw - allow server to start
+    logger.warn('⚠️  Database initialization warning:', error?.message);
+    // Don't throw - allow server to start even if tables exist
   }
 }
 
@@ -155,9 +154,20 @@ async function initializePostgreSQL(): Promise<void> {
     `);
 
     // Add profileImageUrl column if it doesn't exist (for existing databases)
-    await db.run(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS profileImageUrl TEXT NOT NULL DEFAULT ''
-    `);
+    try {
+      await db.run(`
+        ALTER TABLE users ADD COLUMN profileImageUrl TEXT NOT NULL DEFAULT ''
+      `);
+      logger.info('✅ Added profileImageUrl column to users table');
+    } catch (error: any) {
+      // Column might already exist - that's OK
+      if (error.message?.includes('already exists') || error.message?.includes('duplicate column')) {
+        logger.info('✅ profileImageUrl column already exists');
+      } else {
+        logger.warn('⚠️  Could not add profileImageUrl column:', error.message);
+        // Don't fail - the column might already exist or have a different status
+      }
+    }
 
     // Create indexes on users table for performance
     await db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
