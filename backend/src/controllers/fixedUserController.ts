@@ -281,11 +281,22 @@ class FixedUserController {
         });
       }
 
-      // Find user by email
-      const user = await db.get(
-        'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE email = ?',
-        [email]
-      );
+      // Find user by email (case-insensitive)
+      logger.info('🔍 Finding user by email...', { email });
+      let user;
+      try {
+        user = await db.get(
+          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE LOWER(email) = LOWER(?)',
+          [email]
+        );
+      } catch (lowerError: any) {
+        // Fallback to simple query
+        logger.warn('⚠️  LOWER() failed in login, trying simple comparison', { error: lowerError.message });
+        user = await db.get(
+          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE email = ?',
+          [email]
+        );
+      }
 
       if (!user) {
         logger.warn('❌ Login failed: user not found', { email });
