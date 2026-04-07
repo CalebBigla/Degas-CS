@@ -177,16 +177,23 @@ export class ImageService {
         logger.error('Failed to decode base64:', bufferError);
         throw new Error('Failed to decode image data');
       }
+
       const filename = `${uuidv4()}.webp`;
 
       // Process image: resize, optimize, and convert to WebP
-      const processedBuffer = await sharp(imageBuffer)
-        .resize(this.MAX_WIDTH, this.MAX_HEIGHT, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .webp({ quality: this.QUALITY })
-        .toBuffer();
+      let processedBuffer;
+      try {
+        processedBuffer = await sharp(imageBuffer)
+          .resize(this.MAX_WIDTH, this.MAX_HEIGHT, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .webp({ quality: this.QUALITY })
+          .toBuffer();
+      } catch (sharpError) {
+        logger.error('Sharp image processing failed:', sharpError);
+        throw new Error('Failed to process image');
+      }
 
       // Upload to Cloudinary if configured
       if (useCloudinary) {
