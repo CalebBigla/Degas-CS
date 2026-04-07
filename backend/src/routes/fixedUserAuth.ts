@@ -1,5 +1,6 @@
 import express from 'express';
 import fixedUserController from '../controllers/fixedUserController';
+import logger from '../config/logger';
 
 const router = express.Router();
 
@@ -25,16 +26,61 @@ router.post('/register/:formId', fixedUserController.register.bind(fixedUserCont
 // Login - POST /api/form/login
 router.post('/login', fixedUserController.login.bind(fixedUserController));
 
-// Debug: Check users in database (development only)
+// Debug: Check database state (development only)
 if (process.env.NODE_ENV !== 'production') {
-  router.get('/debug/users', async (req, res) => {
+  router.get('/debug/db-state', async (req, res) => {
     try {
       const { db } = require('../config/database');
-      const users = await db.all('SELECT id, name, email, phone FROM users LIMIT 20');
+      
+      logger.info('🔍 Debug endpoint: Checking database state...');
+      
+      // Get all users
+      const users = await db.all('SELECT id, name, email, phone FROM users');
+      logger.info(`📊 Database has ${users?.length || 0} users`);
+      
+      // Check for specific email if provided
+      const queryEmail = req.query.email as string;
+      let emailMatch = null;
+      if (queryEmail) {
+        emailMatch = await db.get('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [queryEmail]);
+        logger.info('🔍 Email search result:', { queryEmail, found: !!emailMatch });
+      }
+      
       res.json({
         success: true,
-        count: users?.length || 0,
-        users: users || []
+        database: {
+          totalUsers: users?.length || 0,
+          users: users || [],
+          queryEmail: queryEmail ? { email: queryEmail, found: !!emailMatch, match: emailMatch } : null
+        }
+      });
+    } catch (error: any) {
+      logger.error('❌ Debug endpoint error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  router.post('/debug/delete-all-users', async (req, res) => {
+    const { confirmToken } = req.body;
+    
+    if (confirmToken !== process.env.ADMIN_KEY) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized'
+      });
+    }
+
+    try {
+      const { db } = require('../config/database');
+      await db.run('DELETE FROM users');
+      logger.warn('🗑️  DEBUG: All users deleted');
+      
+      res.json({
+        success: true,
+        message: 'All users deleted'
       });
     } catch (error: any) {
       res.status(500).json({
