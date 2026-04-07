@@ -80,7 +80,16 @@ class FixedUserController {
 
       // Hash password
       logger.info('🔐 Hashing password', { passwordLength: password.length });
-      const hashedPassword = await bcrypt.hash(password, 10);
+      let hashedPassword: string;
+      try {
+        hashedPassword = await bcrypt.hash(password, 10);
+      } catch (hashError: any) {
+        logger.error('❌ Password hashing failed:', hashError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to hash password: ' + hashError.message
+        });
+      }
       logger.info('🔐 Password hashed', { 
         hashedLength: hashedPassword.length,
         hashedPrefix: hashedPassword.substring(0, 7)
@@ -141,11 +150,19 @@ class FixedUserController {
 
       // Insert user into database
       const now = new Date().toISOString();
-      await db.run(
-        `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, profileImageUrl, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, name, phone, email, address, hashedPassword, formId, false, null, profileImageUrl, now, now]
-      );
+      try {
+        await db.run(
+          `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, profileImageUrl, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [userId, name, phone, email, address, hashedPassword, formId, false, null, profileImageUrl, now, now]
+        );
+      } catch (dbError: any) {
+        logger.error('❌ Database insert error:', dbError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to save user to database: ' + dbError.message
+        });
+      }
 
       logger.info('✅ User registered successfully', { userId, email, formId, hasProfileImage: !!profileImageUrl });
 
@@ -159,10 +176,12 @@ class FixedUserController {
 
     } catch (error: any) {
       logger.error('❌ Registration error:', error);
+      logger.error('Error stack:', error.stack);
       res.status(500).json({
         success: false,
-        message: 'Registration failed',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: error.message || 'Registration failed',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        type: error.constructor.name
       });
     }
   }
