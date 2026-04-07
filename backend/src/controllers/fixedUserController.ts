@@ -58,20 +58,49 @@ class FixedUserController {
         });
       }
 
-      // Check for duplicate email
-      const existingEmail = await db.get('SELECT id FROM users WHERE email = ?', [email]);
+      // Check for duplicate email (case-insensitive)
+      let existingEmail;
+      try {
+        // Use LOWER() for case-insensitive comparison
+        existingEmail = await db.get(
+          'SELECT id FROM users WHERE LOWER(email) = LOWER(?)',
+          [email]
+        );
+        logger.info('📧 Email check result:', { email, found: !!existingEmail, recordId: existingEmail?.id });
+      } catch (emailCheckError: any) {
+        logger.error('❌ Email check query failed:', emailCheckError);
+        // If query fails, try simple comparison (for SQLite compatibility)
+        try {
+          existingEmail = await db.get('SELECT id FROM users WHERE email = ?', [email.toLowerCase()]);
+          logger.info('📧 Email check result (fallback):', { email, found: !!existingEmail });
+        } catch (fallbackError: any) {
+          logger.warn('⚠️  Email check unavailable, allowing registration');
+          existingEmail = null;
+        }
+      }
+      
       if (existingEmail) {
-        logger.warn('❌ Registration failed: email already exists', { email });
+        logger.warn('❌ Registration failed: email already exists', { email, existingId: existingEmail.id });
         return res.status(409).json({
           success: false,
           message: 'Email already registered'
         });
       }
 
-      // Check for duplicate phone
-      const existingPhone = await db.get('SELECT id FROM users WHERE phone = ?', [phone]);
+      // Check for duplicate phone (trim whitespace)
+      let existingPhone;
+      try {
+        const trimmedPhone = phone.trim();
+        existingPhone = await db.get('SELECT id FROM users WHERE phone = ?', [trimmedPhone]);
+        logger.info('📱 Phone check result:', { phone: trimmedPhone, found: !!existingPhone, recordId: existingPhone?.id });
+      } catch (phoneCheckError: any) {
+        logger.error('❌ Phone check query failed:', phoneCheckError);
+        // If query fails, continue anyway
+        existingPhone = null;
+      }
+      
       if (existingPhone) {
-        logger.warn('❌ Registration failed: phone already exists', { phone });
+        logger.warn('❌ Registration failed: phone already exists', { phone, existingId: existingPhone.id });
         return res.status(409).json({
           success: false,
           message: 'Phone number already registered'

@@ -25,6 +25,26 @@ router.post('/register/:formId', fixedUserController.register.bind(fixedUserCont
 // Login - POST /api/form/login
 router.post('/login', fixedUserController.login.bind(fixedUserController));
 
+// Debug: Check users in database (development only)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug/users', async (req, res) => {
+    try {
+      const { db } = require('../config/database');
+      const users = await db.all('SELECT id, name, email, phone FROM users LIMIT 20');
+      res.json({
+        success: true,
+        count: users?.length || 0,
+        users: users || []
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+}
+
 // Get users by form - GET /api/form/users/:formId
 router.get('/users/:formId', fixedUserController.getUsersByForm.bind(fixedUserController));
 
