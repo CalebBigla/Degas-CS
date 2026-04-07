@@ -34,7 +34,9 @@ export function FormTableDetailPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<FormRecord | null>(null);
+  const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -439,6 +441,9 @@ export function FormTableDetailPage() {
                     className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                   />
                 </th>
+                <th className="px-6 py-3 text-center w-16">
+                  <span className="text-sm font-semibold text-gray-700">Photo</span>
+                </th>
                 {fields.map(field => (
                   <th key={field.field_name} className="px-6 py-3 text-left">
                     <span className="text-sm font-semibold text-gray-700">
@@ -462,6 +467,23 @@ export function FormTableDetailPage() {
                       className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                     />
                   </td>
+                  <td className="px-6 py-4 text-center">
+                    {record.profileImageUrl ? (
+                      <img
+                        src={record.profileImageUrl}
+                        alt="Profile"
+                        className="w-12 h-12 rounded-full object-cover border border-gray-200 cursor-pointer hover:opacity-75 transition"
+                        onClick={() => {
+                          setViewingImageUrl(record.profileImageUrl);
+                          setShowImageModal(true);
+                        }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">
+                        No Photo
+                      </div>
+                    )}
+                  </td>
                   {fields.map(field => (
                     <td key={`${record.id}-${field.field_name}`} className="px-6 py-4 text-sm text-gray-700">
                       {field.field_type === 'email' ? (
@@ -478,9 +500,12 @@ export function FormTableDetailPage() {
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleView(record)}
+                        onClick={() => {
+                          setViewingImageUrl(record.profileImageUrl);
+                          setShowImageModal(true);
+                        }}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                        title="View"
+                        title="View Photo"
                       >
                         <Eye size={16} />
                       </button>
@@ -705,6 +730,30 @@ export function FormTableDetailPage() {
                 Edit User
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal */}
+      {showImageModal && viewingImageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="relative max-w-2xl w-full max-h-screen flex flex-col items-center">
+            <button
+              onClick={() => {
+                setShowImageModal(false);
+                setViewingImageUrl(null);
+              }}
+              className="absolute top-4 right-4 p-2 bg-white rounded-full hover:bg-gray-100 transition z-10"
+              title="Close"
+            >
+              <X size={24} className="text-gray-800" />
+            </button>
+            <img
+              src={viewingImageUrl}
+              alt="Full size photo"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            <p className="text-white mt-4 text-center text-sm">Click the image or X button to close</p>
           </div>
         </div>
       )}
