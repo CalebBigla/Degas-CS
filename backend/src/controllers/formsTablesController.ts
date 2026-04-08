@@ -223,8 +223,7 @@ export async function getFormTableUsers(req: Request, res: Response) {
             { field_name: 'name', field_label: 'Name', field_type: 'text' },
             { field_name: 'phone', field_label: 'Phone', field_type: 'tel' },
             { field_name: 'email', field_label: 'Email', field_type: 'email' },
-            { field_name: 'address', field_label: 'Address', field_type: 'text' },
-            { field_name: 'profileImageUrl', field_label: 'Profile Photo', field_type: 'image' }
+            { field_name: 'address', field_label: 'Address', field_type: 'text' }
           ],
           total_records: mappedUsers.length,
           records: mappedUsers,
