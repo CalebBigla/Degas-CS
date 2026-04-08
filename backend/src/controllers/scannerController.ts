@@ -117,13 +117,13 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       );
       logger.info('✅ Access log recorded successfully');
       
-      // Update dynamic_users scanned status - mark user as scanned
+      // Update users scanned status - mark user as scanned
       try {
         const dbType = process.env.DATABASE_TYPE || 'sqlite';
         const timestampFunc = dbType === 'sqlite' ? "datetime('now', 'utc')" : 'NOW()';
         
         await db.run(
-          `UPDATE dynamic_users SET scanned = ?, scanned_at = ${timestampFunc} WHERE id = ?`,
+          `UPDATE users SET scanned = ?, scannedat = ${timestampFunc} WHERE id = ?`,
           [dbType === 'sqlite' ? 1 : true, user!.id]
         );
         logger.info('✅ Scanned status updated for user');
@@ -248,7 +248,7 @@ export const getUserByHash = async (req: AuthRequest, res: Response) => {
     // PRODUCTION-SAFE: Database-only user lookup
     const db = getDatabase();
     const user = await db.get(
-      'SELECT id, employee_id, full_name, role, department, photo_url, status FROM users WHERE qr_hash = ?',
+      'SELECT id, name, phone, email, address, profileimageurl, scanned FROM users WHERE id = ?',
       [hash]
     );
 
@@ -263,12 +263,12 @@ export const getUserByHash = async (req: AuthRequest, res: Response) => {
       success: true,
       data: {
         id: user.id,
-        employeeId: user.employee_id,
-        fullName: user.full_name,
-        role: user.role,
-        department: user.department,
-        photoUrl: user.photo_url,
-        status: user.status
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        address: user.address,
+        photoUrl: user.profileimageurl,
+        status: user.scanned ? 'scanned' : 'pending'
       }
     });
 
@@ -292,12 +292,13 @@ export const getAccessLogs = async (req: AuthRequest, res: Response) => {
     let query = `
       SELECT 
         al.*,
-        du.uuid as employee_id,
-        du.data as user_data,
-        du.photo_url,
+        u.id as employee_id,
+        u.name as user_name,
+        u.email as user_email,
+        u.profileimageurl as photo_url,
         a.username as scanned_by_username
       FROM access_logs al
-      LEFT JOIN dynamic_users du ON al.user_id = du.id
+      LEFT JOIN users u ON al.user_id = u.id
       LEFT JOIN admins a ON al.scanned_by = a.id
       WHERE 1=1
     `;

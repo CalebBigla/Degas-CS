@@ -133,12 +133,12 @@ export class TableSchemaRegistry {
     try {
       logger.info('Searching for user across tables', { userId });
       
-      // Search for user across all tables - search by ID (primary key) since QR codes store the user's ID as userId
+      // Search for user across all forms - search by ID (primary key) since QR codes store the user's ID as userId
       const result = await db.get(
-        `SELECT du.*, t.id as table_id, t.name as table_name
-         FROM dynamic_users du
-         JOIN tables t ON du.table_id = t.id
-         WHERE du.id = ?`,
+        `SELECT u.*, f.id as table_id, f.name as table_name
+         FROM users u
+         JOIN forms f ON u.formid = f.id
+         WHERE u.id = ?`,
         [userId]
       );
 
@@ -155,9 +155,14 @@ export class TableSchemaRegistry {
       return {
         user: {
           id: result.id,
-          uuid: result.uuid,
-          data: JSON.parse(result.data),
-          photoUrl: result.photo_url
+          name: result.name,
+          data: {
+            name: result.name,
+            phone: result.phone,
+            email: result.email,
+            address: result.address
+          },
+          photoUrl: result.profileimageurl
         },
         tableId: result.table_id,
         tableName: result.table_name,
@@ -356,14 +361,14 @@ export class TableSchemaRegistry {
     const db = getDatabase();
 
     try {
-      logger.info('Searching for user in specific table', { userId, tableId });
+      logger.info('Searching for user in specific form', { userId, tableId });
       
-      // Search for user in SPECIFIC table by UUID
+      // Search for user in SPECIFIC form by ID
       const result = await db.get(
-        `SELECT du.*, t.id as table_id, t.name as table_name
-         FROM dynamic_users du
-         JOIN tables t ON du.table_id = t.id
-         WHERE du.uuid = ? AND du.table_id = ?`,
+        `SELECT u.*, f.id as table_id, f.name as table_name
+         FROM users u
+         JOIN forms f ON u.formid = f.id
+         WHERE u.id = ? AND u.formid = ?`,
         [userId, tableId]
       );
 
@@ -380,9 +385,14 @@ export class TableSchemaRegistry {
       return {
         user: {
           id: result.id,
-          uuid: result.uuid,
-          data: result.data && typeof result.data === 'string' ? JSON.parse(result.data) : result.data,
-          photoUrl: result.photo_url
+          name: result.name,
+          data: {
+            name: result.name,
+            phone: result.phone,
+            email: result.email,
+            address: result.address
+          },
+          photoUrl: result.profileimageurl
         },
         tableId: result.table_id,
         tableName: result.table_name,
@@ -395,14 +405,14 @@ export class TableSchemaRegistry {
   }
 
   /**
-   * Get all available tables for scanner selection
+   * Get all available forms for scanner selection
    */
   static async getAllTables(): Promise<Array<{ id: string; name: string }>> {
     const db = getDatabase();
 
     try {
       const tables = await db.all(
-        `SELECT id, name FROM tables ORDER BY name ASC`,
+        `SELECT id, name FROM forms ORDER BY name ASC`,
         []
       );
 
