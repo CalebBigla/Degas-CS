@@ -27,6 +27,10 @@ export function FormTableDetailPage() {
   const [formLink, setFormLink] = useState('');
   const [qrCode, setQrCode] = useState('');
   
+  // Pagination state for infinite scroll
+  const [displayedCount, setDisplayedCount] = useState(15); // Initially show 15 users
+  const ITEMS_PER_PAGE = 10; // Load 10 more on each "Load More" click
+  
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   
@@ -51,6 +55,11 @@ export function FormTableDetailPage() {
   useEffect(() => {
     loadFormData();
   }, [formId]);
+
+  // Reset pagination when search term changes
+  useEffect(() => {
+    setDisplayedCount(15); // Reset to initial count
+  }, [searchTerm]);
 
   const loadFormData = async () => {
     if (!formId) return;
@@ -99,14 +108,25 @@ export function FormTableDetailPage() {
     }
   };
 
-  const filteredRecords = searchTerm.trim() === '' 
+  const filteredRecords = (searchTerm.trim() === '' 
     ? records 
     : records.filter(record =>
         fields.some(field => {
           const value = record[field.field_name];
           return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
         })
-      );
+      )
+  ).slice(0, displayedCount); // Apply pagination - show only first displayedCount items
+  
+  const hasMoreRecords = (searchTerm.trim() === '' 
+    ? records 
+    : records.filter(record =>
+        fields.some(field => {
+          const value = record[field.field_name];
+          return value && value.toString().toLowerCase().includes(searchTerm.toLowerCase());
+        })
+      )
+  ).length > displayedCount; // Check if there are more records to load
 
   // Selection handlers
   const toggleSelect = (id: number) => {
@@ -117,6 +137,11 @@ export function FormTableDetailPage() {
       newSelected.add(id);
     }
     setSelectedIds(newSelected);
+  };
+
+  // Load more handler for infinite scroll
+  const handleLoadMore = () => {
+    setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
   };
 
   const toggleSelectAll = () => {
@@ -566,6 +591,23 @@ export function FormTableDetailPage() {
             </tbody>
             </table>
           </div>
+
+          {/* Load More Button */}
+          {hasMoreRecords && (
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-center">
+              <button
+                onClick={handleLoadMore}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+              >
+                Load More ({displayedCount} of {searchTerm.trim() === '' 
+                  ? records.length 
+                  : records.filter(r => fields.some(f => {
+                      const val = r[f.field_name];
+                      return val && val.toString().toLowerCase().includes(searchTerm.toLowerCase());
+                    })).length})
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
