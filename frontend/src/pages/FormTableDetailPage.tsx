@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Download, Edit2, Trash2, Eye, Link2, QrCode, Plus, X, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Search, Download, Edit2, Trash2, Eye, Link2, QrCode, Plus, X, CheckCircle, XCircle, Upload } from 'lucide-react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -42,8 +42,10 @@ export function FormTableDetailPage() {
     phone: '',
     email: '',
     address: '',
-    password: ''
+    password: '',
+    photo: null as string | null
   });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     loadFormData();
@@ -150,8 +152,11 @@ export function FormTableDetailPage() {
       phone: record.phone || '',
       email: record.email || '',
       address: record.address || '',
-      password: ''
+      password: '',
+      photo: null
     });
+    // Set existing photo as preview
+    setPhotoPreview(record.profileImageUrl || null);
     setShowEditModal(true);
   };
 
@@ -166,9 +171,24 @@ export function FormTableDetailPage() {
       phone: '',
       email: '',
       address: '',
-      password: ''
+      password: '',
+      photo: null
     });
+    setPhotoPreview(null);
     setShowAddModal(true);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setPhotoPreview(base64String);
+        setFormData({ ...formData, photo: base64String });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveAdd = async () => {
@@ -178,9 +198,15 @@ export function FormTableDetailPage() {
         return;
       }
 
+      if (!formData.photo) {
+        toast.error('Profile photo is required');
+        return;
+      }
+
       await api.post(`/form/register/${formId}`, formData);
       toast.success('User added successfully');
       setShowAddModal(false);
+      setPhotoPreview(null);
       loadFormData();
     } catch (error: any) {
       console.error('Failed to add user:', error);
@@ -197,15 +223,23 @@ export function FormTableDetailPage() {
         return;
       }
 
-      await api.put(`/form/users/${currentRecord.id}`, {
+      const updateData: any = {
         name: formData.name,
         phone: formData.phone,
         email: formData.email,
         address: formData.address
-      });
+      };
+
+      // Include photo if a new one was uploaded
+      if (formData.photo) {
+        updateData.photo = formData.photo;
+      }
+
+      await api.put(`/form/users/${currentRecord.id}`, updateData);
       
       toast.success('User updated successfully');
       setShowEditModal(false);
+      setPhotoPreview(null);
       loadFormData();
     } catch (error: any) {
       console.error('Failed to update user:', error);
@@ -540,66 +574,124 @@ export function FormTableDetailPage() {
 
       {/* Add User Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Add New User</h2>
+            
+            {/* Photo Upload Section */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Profile Photo <span className="text-red-600">*</span>
+              </label>
+              <div className="flex flex-col items-center gap-3">
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-dashed border-gray-400">
+                    <Upload className="h-10 w-10 text-gray-400" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label
+                  htmlFor="photo-upload"
+                  className={`px-4 py-2 rounded-lg cursor-pointer transition ${
+                    photoPreview
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {photoPreview ? '✓ Photo Added - Click to Change' : 'Upload Photo'}
+                </label>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Enter full name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="+1234567890"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="email@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Address <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Enter address"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Create a password"
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setPhotoPreview(null);
+                }}
                 className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveAdd}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                disabled={!formData.photo}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition"
+                title={!formData.photo ? 'Please upload a photo first' : ''}
               >
                 Add User
               </button>
@@ -610,50 +702,106 @@ export function FormTableDetailPage() {
 
       {/* Edit User Modal */}
       {showEditModal && currentRecord && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Edit User</h2>
+            
+            {/* Photo Upload Section */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Profile Photo
+              </label>
+              <div className="flex flex-col items-center gap-3">
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-dashed border-gray-400">
+                    <Upload className="h-10 w-10 text-gray-400" />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  id="edit-photo-upload"
+                />
+                <label
+                  htmlFor="edit-photo-upload"
+                  className={`px-4 py-2 rounded-lg cursor-pointer transition ${
+                    formData.photo
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {formData.photo ? '✓ New Photo Selected' : photoPreview ? 'Change Photo' : 'Upload Photo'}
+                </label>
+                {photoPreview && !formData.photo && (
+                  <p className="text-xs text-gray-500">Current photo will be kept if not changed</p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Enter full name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="+1234567890"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="email@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Address <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  placeholder="Enter address"
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false);
+                  setPhotoPreview(null);
+                }}
                 className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition"
               >
                 Cancel

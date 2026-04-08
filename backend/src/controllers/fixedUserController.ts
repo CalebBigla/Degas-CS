@@ -228,7 +228,7 @@ class FixedUserController {
       const now = new Date().toISOString();
       try {
         await db.run(
-          `INSERT INTO users (id, name, phone, email, address, password, formId, scanned, scannedAt, profileImageUrl, createdAt, updatedAt)
+          `INSERT INTO users (id, name, phone, email, address, password, formid, scanned, scannedat, profileimageurl, createdat, updatedat)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [userId, name, phone, email, address, hashedPassword, formId, false, null, profileImageUrl, now, now]
         );
@@ -286,14 +286,14 @@ class FixedUserController {
       let user;
       try {
         user = await db.get(
-          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE LOWER(email) = LOWER(?)',
+          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileimageurl FROM users WHERE LOWER(email) = LOWER(?)',
           [email]
         );
       } catch (lowerError: any) {
         // Fallback to simple query
         logger.warn('⚠️  LOWER() failed in login, trying simple comparison', { error: lowerError.message });
         user = await db.get(
-          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileImageUrl FROM users WHERE email = ?',
+          'SELECT id, name, phone, email, address, password, formid, scanned, scannedat, profileimageurl FROM users WHERE email = ?',
           [email]
         );
       }
@@ -358,7 +358,7 @@ class FixedUserController {
           address: user.address,
           scanned: user.scanned,
           scannedAt: user.scannedat,
-          profileImageUrl: user.profileImageUrl || undefined
+          profileImageUrl: user.profileimageurl || undefined
         }
       });
 
@@ -389,18 +389,32 @@ class FixedUserController {
 
       // Get users (excluding passwords)
       const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, scannedAt, profileImageUrl, createdAt, updatedAt
+        `SELECT id, name, phone, email, address, scanned, scannedat, profileimageurl, createdat, updatedat
          FROM users
-         WHERE formId = ?
-         ORDER BY createdAt DESC`,
+         WHERE formid = ?
+         ORDER BY createdat DESC`,
         [formId]
       );
 
       logger.info(`📊 Fetched ${users.length} users for form ${formId}`);
 
+      // Map lowercase column names to camelCase for frontend
+      const mappedUsers = users.map((user: any) => ({
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        address: user.address,
+        scanned: user.scanned,
+        scannedAt: user.scannedat,
+        profileImageUrl: user.profileimageurl,
+        createdAt: user.createdat,
+        updatedAt: user.updatedat
+      }));
+
       res.json({
         success: true,
-        data: users
+        data: mappedUsers
       });
 
     } catch (error: any) {
@@ -687,7 +701,7 @@ class FixedUserController {
   async updateUser(req: Request, res: Response) {
     try {
       const { userId } = req.params;
-      const { name, phone, email, address } = req.body;
+      const { name, phone, email, address, photo } = req.body;
 
       if (!userId) {
         return res.status(400).json({
@@ -697,7 +711,7 @@ class FixedUserController {
       }
 
       // Find user
-      const user = await db.get('SELECT id, formid FROM users WHERE id = ?', [userId]);
+      const user = await db.get('SELECT id, formid, profileimageurl FROM users WHERE id = ?', [userId]);
       if (!user) {
         return res.status(404).json({
           success: false,
@@ -705,20 +719,48 @@ class FixedUserController {
         });
       }
 
+      // Handle photo upload if provided
+      let profileImageUrl = user.profileimageurl; // Keep existing by default
+      
+      if (photo && typeof photo === 'string' && photo.startsWith('data:image')) {
+        logger.info('Processing new profile image for user update', { userId });
+        try {
+          profileImageUrl = await ImageService.saveBase64Image(photo);
+          logger.info('New profile image uploaded', { userId, imageUrl: profileImageUrl });
+          
+          // Delete old image if it exists and is different
+          if (user.profileimageurl && user.profileimageurl !== profileImageUrl) {
+            try {
+              await ImageService.deleteImage(user.profileimageurl);
+              logger.info('Old profile image deleted', { oldUrl: user.profileimageurl });
+            } catch (deleteError) {
+              logger.warn('Failed to delete old image (not critical)', { error: deleteError });
+            }
+          }
+        } catch (imageError: any) {
+          logger.error('Failed to process new image:', imageError);
+          return res.status(400).json({
+            success: false,
+            message: 'Failed to process image: ' + imageError.message
+          });
+        }
+      }
+
       // Update user
       const updatedAt = new Date().toISOString();
       await db.run(
         `UPDATE users 
-         SET name = ?, phone = ?, email = ?, address = ?, updatedat = ?
+         SET name = ?, phone = ?, email = ?, address = ?, profileimageurl = ?, updatedat = ?
          WHERE id = ?`,
-        [name, phone, email, address, updatedAt, userId]
+        [name, phone, email, address, profileImageUrl, updatedAt, userId]
       );
 
-      logger.info('✅ User updated successfully', { userId, email });
+      logger.info('✅ User updated successfully', { userId, email, hasNewPhoto: !!photo });
 
       res.json({
         success: true,
-        message: 'User updated successfully'
+        message: 'User updated successfully',
+        profileImageUrl
       });
 
     } catch (error: any) {

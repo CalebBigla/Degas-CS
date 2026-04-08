@@ -189,14 +189,29 @@ export async function getFormTableUsers(req: Request, res: Response) {
       
       // Use ? placeholder, adapter will convert - use lowercase column names
       const users = await db.all(
-        `SELECT id, name, phone, email, address, scanned, scannedat, createdat, updatedat
+        `SELECT id, name, phone, email, address, scanned, scannedat, profileimageurl, createdat, updatedat
          FROM users
          WHERE formid = ?
          ORDER BY createdat DESC`,
         [formId]
       );
       
-      logger.info(`✅ Found ${users.length} users for form ${newForm.name}`);
+      // Map lowercase column names to camelCase for frontend compatibility
+      const mappedUsers = users.map((user: any) => ({
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        address: user.address,
+        scanned: user.scanned,
+        scannedAt: user.scannedat,
+        profileImageUrl: user.profileimageurl, // Map lowercase to camelCase
+        createdAt: user.createdat,
+        updatedAt: user.updatedat
+      }));
+      
+      logger.info(`✅ Found ${mappedUsers.length} users for form ${newForm.name}`);
+      logger.info('🔍 Sample mapped user:', JSON.stringify(mappedUsers[0], null, 2));
       
       // Return in the expected format
       return res.json({
@@ -208,10 +223,11 @@ export async function getFormTableUsers(req: Request, res: Response) {
             { field_name: 'name', field_label: 'Name', field_type: 'text' },
             { field_name: 'phone', field_label: 'Phone', field_type: 'tel' },
             { field_name: 'email', field_label: 'Email', field_type: 'email' },
-            { field_name: 'address', field_label: 'Address', field_type: 'text' }
+            { field_name: 'address', field_label: 'Address', field_type: 'text' },
+            { field_name: 'profileImageUrl', field_label: 'Profile Photo', field_type: 'image' }
           ],
-          total_records: users.length,
-          records: users,
+          total_records: mappedUsers.length,
+          records: mappedUsers,
           link: newForm.link,
           qrCode: newForm.qrCode || newForm["qrCode"]
         }
