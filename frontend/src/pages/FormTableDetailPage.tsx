@@ -35,6 +35,7 @@ export function FormTableDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<FormRecord | null>(null);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -464,7 +465,8 @@ export function FormTableDetailPage() {
 
       {filteredRecords.length > 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 text-left w-12">
@@ -476,7 +478,7 @@ export function FormTableDetailPage() {
                   />
                 </th>
                 <th className="px-6 py-3 text-center w-16">
-                  <span className="text-sm font-semibold text-gray-700">Photo</span>
+                  <span className="text-sm font-semibold text-gray-700">Profile</span>
                 </th>
                 {fields.map(field => (
                   <th key={field.field_name} className="px-6 py-3 text-left">
@@ -535,11 +537,11 @@ export function FormTableDetailPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
-                          setViewingImageUrl(record.profileImageUrl);
-                          setShowImageModal(true);
+                          setCurrentRecord(record);
+                          setShowUserDetailsModal(true);
                         }}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                        title="View Photo"
+                        title="View User Details"
                       >
                         <Eye size={16} />
                       </button>
@@ -562,7 +564,8 @@ export function FormTableDetailPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
@@ -902,6 +905,122 @@ export function FormTableDetailPage() {
               className="max-w-full max-h-[85vh] object-contain rounded-lg"
             />
             <p className="text-white mt-4 text-center text-sm">Click the image or X button to close</p>
+          </div>
+        </div>
+      )}
+
+      {/* User Details Modal */}
+      {showUserDetailsModal && currentRecord && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">User Details</h2>
+              <button
+                onClick={() => {
+                  setShowUserDetailsModal(false);
+                  setCurrentRecord(null);
+                }}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X size={24} className="text-gray-600" />
+              </button>
+            </div>
+
+            {/* Profile Image */}
+            <div className="mb-6 flex flex-col items-center">
+              {currentRecord.profileImageUrl ? (
+                <img
+                  src={currentRecord.profileImageUrl}
+                  alt={currentRecord.name}
+                  className="w-24 h-24 rounded-full object-cover border-4 border-blue-500 mb-3 cursor-pointer hover:opacity-75 transition"
+                  onClick={() => {
+                    setViewingImageUrl(currentRecord.profileImageUrl);
+                    setShowImageModal(true);
+                  }}
+                  title="Click to view full size"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center mb-3 border-4 border-gray-300">
+                  <span className="text-gray-400 text-xs font-medium">No Photo</span>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 text-center">Click image to view full size</p>
+            </div>
+
+            {/* User Information */}
+            <div className="space-y-4 bg-gray-50 rounded-lg p-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                  Name
+                </label>
+                <p className="text-gray-900 font-medium">{currentRecord.name || '-'}</p>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                  Email
+                </label>
+                <a href={`mailto:${currentRecord.email}`} className="text-blue-600 hover:underline font-medium">
+                  {currentRecord.email || '-'}
+                </a>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                  Phone
+                </label>
+                <a href={`tel:${currentRecord.phone}`} className="text-blue-600 hover:underline font-medium">
+                  {currentRecord.phone || '-'}
+                </a>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                  Address
+                </label>
+                <p className="text-gray-900 font-medium">{currentRecord.address || '-'}</p>
+              </div>
+
+              {currentRecord.scanned !== undefined && (
+                <div className="border-t border-gray-200 pt-4">
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                    Attendance Status
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {currentRecord.scanned ? (
+                      <>
+                        <CheckCircle size={18} className="text-green-600" />
+                        <span className="text-green-600 font-medium">Checked In</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={18} className="text-gray-400" />
+                        <span className="text-gray-600 font-medium">Not Checked In</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => handleEdit(currentRecord)}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserDetailsModal(false);
+                  setCurrentRecord(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
