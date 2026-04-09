@@ -16,7 +16,8 @@ import {
   Sun,
   Moon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -51,40 +52,45 @@ export function Layout({ children }: LayoutProps) {
 
   const userInitial = (admin?.username || user?.email)?.charAt(0).toUpperCase() || 'U';
   const userName = admin?.username || user?.email || 'User';
+  const displayName = userName.length > 20 ? userName.substring(0, 20) + '...' : userName;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 bg-sidebar border-r border-sidebar-border',
+          'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ease-in-out',
+          'bg-[hsl(var(--sidebar-background))] border-r border-[hsl(var(--sidebar-border))]',
           sidebarCollapsed ? 'w-20' : 'w-64',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
         {/* Logo Section */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
+        <div className={cn(
+          'flex h-16 items-center border-b border-[hsl(var(--sidebar-border))]',
+          sidebarCollapsed ? 'justify-center px-4' : 'justify-between px-6'
+        )}>
           {!sidebarCollapsed && (
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-sidebar-primary rounded-lg">
-                <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[hsl(var(--sidebar-primary))] rounded-lg shadow-sm">
+                <Shield className="h-5 w-5 text-[hsl(var(--sidebar-primary-foreground))]" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-sidebar-foreground">AccessHub</span>
-                <span className="text-xs text-sidebar-muted">Control Panel</span>
+                <span className="text-sm font-semibold text-[hsl(var(--sidebar-foreground))]">AccessHub</span>
+                <span className="text-xs text-[hsl(var(--sidebar-muted))]">Control Panel</span>
               </div>
             </div>
           )}
           {sidebarCollapsed && (
-            <div className="p-2 bg-sidebar-primary rounded-lg mx-auto">
-              <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
+            <div className="p-2 bg-[hsl(var(--sidebar-primary))] rounded-lg shadow-sm">
+              <Shield className="h-5 w-5 text-[hsl(var(--sidebar-primary-foreground))]" />
             </div>
           )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
-          <div className="space-y-1">
+        <nav className="flex-1 overflow-y-auto py-6 px-3">
+          <div className="space-y-1.5">
             {navigation.map((item) => {
               const isActive = !item.external && (
                 location.pathname === item.href || 
@@ -99,14 +105,14 @@ export function Layout({ children }: LayoutProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
-                      'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      sidebarCollapsed && 'justify-center'
+                      'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
+                      'text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-accent-foreground))]',
+                      sidebarCollapsed && 'justify-center px-3'
                     )}
                     title={sidebarCollapsed ? item.name : undefined}
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />
-                    {!sidebarCollapsed && <span>{item.name}</span>}
+                    {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
                   </a>
                 );
               }
@@ -116,16 +122,16 @@ export function Layout({ children }: LayoutProps) {
                   key={item.name}
                   to={item.href}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                    'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200',
                     isActive
-                      ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                    sidebarCollapsed && 'justify-center'
+                      ? 'bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] shadow-md'
+                      : 'text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-accent-foreground))]',
+                    sidebarCollapsed && 'justify-center px-3'
                   )}
                   title={sidebarCollapsed ? item.name : undefined}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {!sidebarCollapsed && <span>{item.name}</span>}
+                  {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
                 </Link>
               );
             })}
@@ -133,10 +139,14 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         {/* Collapse Button */}
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="p-4 border-t border-[hsl(var(--sidebar-border))]">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex items-center justify-center w-full p-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            className={cn(
+              'hidden lg:flex items-center w-full py-2.5 rounded-lg transition-all duration-200',
+              'text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))]',
+              sidebarCollapsed ? 'justify-center px-3' : 'justify-start px-4 gap-2'
+            )}
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
@@ -144,7 +154,7 @@ export function Layout({ children }: LayoutProps) {
             ) : (
               <>
                 <ChevronLeft className="h-5 w-5" />
-                <span className="ml-2 text-sm">Collapse</span>
+                <span className="text-sm font-medium">Collapse</span>
               </>
             )}
           </button>
@@ -154,19 +164,23 @@ export function Layout({ children }: LayoutProps) {
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Main Content */}
-      <div className={cn('transition-all duration-300', sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64')}>
+      <div className={cn(
+        'min-h-screen transition-all duration-300 ease-in-out',
+        sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
+      )}>
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-card px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 px-4 sm:px-6 lg:px-8">
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 hover:bg-accent/10 rounded-lg transition-colors"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? (
               <X className="h-5 w-5 text-foreground" />
@@ -178,21 +192,23 @@ export function Layout({ children }: LayoutProps) {
           {/* Search Bar */}
           <div className="flex-1 max-w-md">
             <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search anything..."
-                className="w-full pl-4 pr-4 py-2 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-lg text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
               />
             </div>
           </div>
 
           {/* Right Section */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 hover:bg-accent/10 rounded-lg transition-colors"
               title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              aria-label="Toggle theme"
             >
               {theme === 'light' ? (
                 <Moon className="h-5 w-5 text-foreground" />
@@ -202,29 +218,38 @@ export function Layout({ children }: LayoutProps) {
             </button>
 
             {/* Notifications */}
-            <button className="relative p-2 hover:bg-accent/10 rounded-lg transition-colors">
+            <button 
+              className="relative p-2 hover:bg-accent/10 rounded-lg transition-colors"
+              aria-label="Notifications"
+            >
               <Bell className="h-5 w-5 text-foreground" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-card"></span>
             </button>
 
-            {/* Profile Dropdown */}
-            <div className="flex items-center gap-3 pl-3 border-l border-border">
-              <div className="hidden sm:block text-right">
-                <div className="text-sm font-medium text-foreground">{userName}</div>
-                <div className="text-xs text-muted-foreground capitalize">{userRole}</div>
+            {/* Divider */}
+            <div className="hidden sm:block h-8 w-px bg-border" />
+
+            {/* Profile Section */}
+            <div className="flex items-center gap-3">
+              <div className="hidden md:block text-right">
+                <div className="text-sm font-medium text-foreground leading-tight">{displayName}</div>
+                <div className="text-xs text-muted-foreground capitalize">{userRole?.replace('_', ' ')}</div>
               </div>
-              <button className="relative group">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center ring-2 ring-background shadow-sm">
+              <button 
+                className="relative group"
+                aria-label="Profile menu"
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center ring-2 ring-background shadow-sm group-hover:ring-primary/20 transition-all">
                   <span className="text-primary-foreground font-semibold text-sm">
                     {userInitial}
                   </span>
                 </div>
-                {/* Dropdown menu can be added here */}
               </button>
               <button
                 onClick={handleLogout}
                 className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
                 title="Logout"
+                aria-label="Logout"
               >
                 <LogOut className="h-5 w-5" />
               </button>
@@ -233,8 +258,10 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
-          {children}
+        <main className="p-4 sm:p-6 lg:p-8 max-w-[1920px] mx-auto">
+          <div className="w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>
