@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UserDashboardPage } from './pages/UserDashboardPage';
@@ -33,13 +34,15 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<Navigate to="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" replace />} />
-        <Route path="/register/:formId" element={<RegisterPage />} />
-        <Route path="/scanner" element={<ScannerPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <ThemeProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<Navigate to="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" replace />} />
+          <Route path="/register/:formId" element={<RegisterPage />} />
+          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </ThemeProvider>
     );
   }
 
@@ -47,7 +50,7 @@ function App() {
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
   return (
-    <>
+    <ThemeProvider>
       {isAdmin ? (
         // Admin Routes
         <Layout>
@@ -82,7 +85,7 @@ function App() {
           <Route path="*" element={<Navigate to="/user/dashboard" replace />} />
         </Routes>
       )}
-    </>
+    </ThemeProvider>
   );
 }
 
