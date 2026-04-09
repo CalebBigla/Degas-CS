@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, MoreHorizontal, Trash2, Users as UsersIcon, FolderOpen, Plus, Edit2, Link2, Download, Copy } from 'lucide-react';
+import { Search, Upload, MoreHorizontal, Trash2, Users as UsersIcon, FolderOpen, Plus, Edit2, Download, Copy } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { BulkUploadModal } from '../components/users/BulkUploadModal';
@@ -105,46 +105,25 @@ export function TablesPage() {
     setActionMenuTable(null);
   };
 
-  const handleGenerateLink = async (table: Table) => {
-    try {
-      // For fixed_form types, get the registration link from the form
-      if (table.type === 'fixed_form' || table.type === 'form') {
-        const link = table.link || `${window.location.origin}/register/${table.id}`;
-        
-        // Copy to clipboard
-        await navigator.clipboard.writeText(link);
-        toast.success('Registration link copied to clipboard!');
-        
-        // Also show the link in a prompt for manual copy if needed
-        setTimeout(() => {
-          alert(`Registration Link:\n\n${link}\n\nLink has been copied to clipboard.`);
-        }, 100);
-      } else {
-        toast.error('Link generation not available for this table type');
-      }
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-      toast.error('Failed to copy link to clipboard');
-    }
-    setActionMenuTable(null);
-  };
-
   const handleDownloadQR = async (table: Table) => {
     try {
-      // For fixed_form types, get the QR code from the form
+      // For fixed_form types, fetch and download the QR code
       if (table.type === 'fixed_form' || table.type === 'form') {
-        if (!table.qrCode) {
-          toast.error('QR code not available for this form');
-          return;
-        }
+        // Fetch the QR code from the backend
+        const response = await api.get(`/admin/forms/${table.id}/qr-code`, {
+          responseType: 'blob'
+        });
 
-        // Create a download link for the QR code
+        // Create a blob URL and download
+        const blob = new Blob([response.data], { type: 'image/png' });
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = table.qrCode;
+        link.href = url;
         link.download = `${table.name.replace(/\s+/g, '_')}_QR_Code.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
         
         toast.success('QR code downloaded successfully!');
       } else {
@@ -270,14 +249,6 @@ export function TablesPage() {
                         
                         {(table.type === 'form' || table.type === 'fixed_form') && (
                           <>
-                            <button
-                              onClick={() => handleGenerateLink(table)}
-                              className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-emerald hover:bg-emerald/5 transition-colors"
-                            >
-                              <Link2 className="h-4 w-4" />
-                              <span>Generate Link</span>
-                            </button>
-                            
                             <button
                               onClick={() => handleDownloadQR(table)}
                               className="flex items-center space-x-2 w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"

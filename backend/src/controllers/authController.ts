@@ -66,18 +66,26 @@ export const login = async (req: Request<{}, ApiResponse<LoginResponse>, LoginRe
       });
     }
 
-    // PRODUCTION-SAFE: Database-only authentication
+    // PRODUCTION-SAFE: Database-only authentication (using core_users table)
     const db = getDatabase();
-    const admin = await db.get('SELECT * FROM admins WHERE username = ?', [username]);
+    
+    // Try to find user by email (username field might be an email)
+    let user = await db.get('SELECT * FROM core_users WHERE email = ?', [username.toLowerCase()]);
+    
+    // If not found, try treating username as email literal
+    if (!user && !username.includes('@')) {
+      // Try as uppercase email domain convention
+      user = await db.get('SELECT * FROM core_users WHERE email = ?', [username + '@degas.com']);
+    }
 
-    if (!admin) {
+    if (!user) {
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials'
       });
     }
 
-    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+    const isValidPassword = await bcrypt.compare(password, user.password);
     
     if (!isValidPassword) {
       return res.status(401).json({
@@ -86,26 +94,34 @@ export const login = async (req: Request<{}, ApiResponse<LoginResponse>, LoginRe
       });
     }
 
-    // Update last login
+    // Verify user is active
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        error: 'Account is not active'
+      });
+    }
+
+    // Update last login timestamp
     await db.run(
-      'UPDATE admins SET last_login = datetime("now") WHERE id = ?',
-      [admin.id]
+      'UPDATE core_users SET updated_at = datetime("now") WHERE id = ?',
+      [user.id]
     );
 
     // Generate tokens
     const token = jwt.sign(
-      { adminId: admin.id, role: admin.role },
+      { adminId: user.id, userId: user.id, email: user.email, role: user.role, type: 'core_user' },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
 
     const refreshToken = jwt.sign(
-      { adminId: admin.id },
+      { adminId: user.id, userId: user.id },
       process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
 
-    logger.info(`Database admin login successful: ${username}`);
+    logger.info(`Database user login successful: ${user.email} (role: ${user.role})`);
 
     return res.json({
       success: true,
@@ -113,9 +129,11 @@ export const login = async (req: Request<{}, ApiResponse<LoginResponse>, LoginRe
         token,
         refreshToken,
         admin: {
-          username: admin.username,
-          email: admin.email,
-          role: admin.role
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          qrToken: user.qr_token
         }
       }
     });
@@ -158,20 +176,28 @@ export const refresh = async (req: Request, res: Response) => {
       });
     }
     
-    // PRODUCTION-SAFE: Database-only token refresh
+    // PRODUCTION-SAFE: Database-only token refresh (using core_users table)
     const db = getDatabase();
-    const admin = await db.get('SELECT id, username, email, role FROM admins WHERE id = ?', [decoded.adminId]);
+    const user = await db.get('SELECT id, email, role, status FROM core_users WHERE id = ?', [decoded.adminId]);
 
-    if (!admin) {
+    if (!user) {
       return res.status(401).json({
         success: false,
         error: 'Invalid refresh token'
       });
     }
 
+    // Verify user is still active
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        error: 'User account is not active'
+      });
+    }
+
     // Generate new access token
     const token = jwt.sign(
-      { adminId: admin.id, role: admin.role },
+      { adminId: user.id, userId: user.id, email: user.email, role: user.role, type: 'core_user' },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );

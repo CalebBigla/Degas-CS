@@ -45,38 +45,45 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     logger.info('🔐 [AUTH CHECK] Verifying JWT token...');
     
     try {
-      // Try old admin token
+      // Verify JWT token
       const decoded = jwt.verify(token, jwtSecret) as any;
       
-      logger.info('🔐 [AUTH CHECK] Old admin JWT verified, looking up admin', {
-        adminId: decoded.adminId
+      logger.info('🔐 [AUTH CHECK] JWT verified, looking up user in core_users', {
+        userId: decoded.userId || decoded.adminId
       });
 
       const db = getDatabase();
-      const admin = await db.get(
-        'SELECT id, username, email, role, last_login, created_at FROM admins WHERE id = ?',
-        [decoded.adminId]
+      const userId = decoded.userId || decoded.adminId;
+      const user = await db.get(
+        'SELECT id, email, role, status, created_at as createdAt FROM core_users WHERE id = ?',
+        [userId]
       );
 
-      if (admin) {
-        req.admin = admin;
-        logger.info('🔐 [AUTH SUCCESS] Admin authenticated', {
-          adminId: admin.id,
-          username: admin.username,
-          role: admin.role,
+      if (user && user.status === 'active') {
+        req.admin = {
+          id: user.id,
+          username: user.email.split('@')[0], // Derive username from email
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt
+        };
+        logger.info('🔐 [AUTH SUCCESS] User authenticated', {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
           path: req.path
         });
         return next();
       }
 
-      logger.warn('🔐 [AUTH FAIL] Admin not found in database', {
-        adminId: decoded.adminId,
+      logger.warn('🔐 [AUTH FAIL] User not found or not active in database', {
+        userId: userId,
         ip: req.ip,
         path: req.path
       });
       return res.status(401).json({ 
         success: false, 
-        error: 'Invalid token - user not found' 
+        error: 'Invalid token - user not found or inactive' 
       });
     } catch (oldAdminError) {
       // Old admin token failed, try core user token

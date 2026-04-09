@@ -264,6 +264,55 @@ class FormController {
       });
     }
   }
+
+  /**
+   * Get QR code for a form (admin only)
+   * GET /api/admin/forms/:id/qr-code
+   */
+  async getFormQRCode(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      
+      // Get form by ID
+      const form = await formService.getFormById(id);
+
+      if (!form) {
+        return res.status(404).json({
+          success: false,
+          message: 'Form not found'
+        });
+      }
+
+      // Check if form has QR code
+      if (!form.qr_code) {
+        return res.status(404).json({
+          success: false,
+          message: 'QR code not available for this form'
+        });
+      }
+
+      // Convert data URL to PNG buffer
+      const dataUrl = form.qr_code;
+      
+      // Remove data:image/png;base64, prefix if present
+      const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      // Send as PNG file
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `attachment; filename="${form.form_name.replace(/\s+/g, '_')}_QR_Code.png"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Error getting form QR code:', { message: errorMessage });
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get QR code',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      });
+    }
+  }
 }
 
 export default new FormController();
