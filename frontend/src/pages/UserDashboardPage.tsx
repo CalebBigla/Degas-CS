@@ -298,40 +298,40 @@ export function UserDashboardPage() {
       )}
 
       {/* Mobile App Style Header */}
-      <div className="bg-gradient-to-br from-primary via-primary to-accent p-6 pb-8 shadow-lg">
+      <div className="bg-[hsl(var(--sidebar-background))] px-5 py-4 shadow-md">
         <div className="max-w-[720px] mx-auto">
           {/* Top Bar */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             {/* Hamburger Menu */}
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
               aria-label="Menu"
             >
-              <Menu className="h-6 w-6 text-white" />
+              <Menu className="h-5 w-5 text-white" />
             </button>
 
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
               title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
               aria-label="Toggle theme"
             >
               {theme === 'light' ? (
-                <Moon className="h-6 w-6 text-white" />
+                <Moon className="h-5 w-5 text-white" />
               ) : (
-                <Sun className="h-6 w-6 text-white" />
+                <Sun className="h-5 w-5 text-white" />
               )}
             </button>
           </div>
 
           {/* Welcome Text */}
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-              Welcome, <span className="text-white/90">{userData?.name?.split(' ')[0] || 'Church'}</span>
+            <h1 className="text-2xl font-bold text-white">
+              Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
             </h1>
-            <p className="text-white/80 text-sm font-medium">User Dashboard</p>
+            <p className="text-white/70 text-xs font-medium mt-0.5">User Dashboard</p>
           </div>
         </div>
       </div>
@@ -405,7 +405,7 @@ export function UserDashboardPage() {
         </>
       )}
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[720px] mx-auto space-y-5 sm:space-y-6 -mt-4 relative z-10">
+      <div className="p-4 sm:p-5 max-w-[720px] mx-auto space-y-4 sm:space-y-5">
         {/* Dashboard Tab Content */}
         {activeTab === 'dashboard' && (
           <>
@@ -413,21 +413,23 @@ export function UserDashboardPage() {
             <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
               <h2 className="text-base font-bold text-foreground mb-5">Your Information</h2>
               <div className="flex items-start gap-4 sm:gap-5">
-                {/* Profile Image */}
+                {/* Profile Image - Always show image from database or placeholder */}
                 <div className="shrink-0">
-                  {userData?.profileImageUrl ? (
-                    <img 
-                      src={userData.profileImageUrl} 
-                      alt={userData.name}
-                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-border"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-muted flex items-center justify-center border-2 border-border">
-                      <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">
-                        {getUserInitials()}
-                      </span>
-                    </div>
-                  )}
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-border bg-muted">
+                    {userData?.profileImageUrl ? (
+                      <img 
+                        src={userData.profileImageUrl} 
+                        alt={userData.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">
+                          {getUserInitials()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* User Details */}
@@ -530,95 +532,81 @@ export function UserDashboardPage() {
               </div>
             )}
 
-            {/* ID Card with QR */}
-            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-              <div className="px-5 pt-5 sm:px-6 sm:pt-6">
-                <h2 className="text-base font-bold text-foreground mb-1">Your ID Card</h2>
-                <p className="text-sm text-muted-foreground font-medium">Show this to the admin to mark your attendance</p>
-              </div>
-              
-              <div className="p-5 sm:p-6">
-                <div className="mx-auto max-w-[360px] rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
+            {/* ID Card Display */}
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
+              <div className="mx-auto max-w-[400px]">
+                {/* ID Card */}
+                <div className="rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
                   {/* Card Header */}
-                  <div className="bg-[hsl(var(--sidebar-primary))]/20 px-5 py-3.5 flex items-center justify-between border-b border-[hsl(var(--sidebar-border))]">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-7 w-7 rounded-lg bg-[hsl(var(--sidebar-primary))] flex items-center justify-center shadow-sm">
-                        <span className="text-[11px] font-bold text-white">TFG</span>
+                  <div className="bg-[hsl(var(--sidebar-primary))]/20 px-4 py-3 flex items-center justify-between border-b border-[hsl(var(--sidebar-border))]">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-[hsl(var(--sidebar-primary))] flex items-center justify-center shadow-sm">
+                        <span className="text-xs font-bold text-white">TFG</span>
                       </div>
-                      <span className="text-xs text-[hsl(var(--sidebar-foreground))] font-semibold tracking-wide">The Force of Grace Ministry</span>
-                    </div>
-                    <span className="text-[10px] text-[hsl(var(--sidebar-muted))] font-mono">
-                      {userData?.id?.substring(0, 8) || 'USR-00000'}
-                    </span>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="px-5 py-5 flex items-start gap-4">
-                    {/* Profile Image */}
-                    <div className="shrink-0">
-                      {userData?.profileImageUrl ? (
-                        <img 
-                          src={userData.profileImageUrl} 
-                          alt={userData.name}
-                          className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl object-cover border-2 border-[hsl(var(--sidebar-primary))]/30 shadow-md"
-                        />
-                      ) : (
-                        <div className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl border-2 border-[hsl(var(--sidebar-primary))]/30 bg-[hsl(var(--sidebar-accent))] flex items-center justify-center shadow-md">
-                          <span className="text-[hsl(var(--sidebar-primary-foreground))] text-lg sm:text-xl font-bold">
-                            {getUserInitials()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* User Info */}
-                    <div className="flex-1 min-w-0 space-y-2.5">
-                      <div>
-                        <p className="text-base sm:text-lg font-bold leading-tight truncate text-[hsl(var(--sidebar-foreground))]">
-                          {userData?.name || 'User'}
-                        </p>
-                        <p className="text-xs text-[hsl(var(--sidebar-muted))] mt-1 font-semibold uppercase tracking-wide">
-                          Member
-                        </p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 text-[hsl(var(--sidebar-foreground))]">
-                          <Phone className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--sidebar-muted))]" />
-                          <span className="text-xs font-medium">{userData?.phone || 'N/A'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[hsl(var(--sidebar-foreground))]">
-                          <Mail className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--sidebar-muted))]" />
-                          <span className="text-xs font-medium truncate">{userData?.email || 'N/A'}</span>
-                        </div>
-                      </div>
+                      <span className="text-xs text-[hsl(var(--sidebar-foreground))] font-semibold">The Force of Grace Ministry</span>
                     </div>
                   </div>
 
-                  {/* QR Code Section */}
-                  {qrCodeImage && (
-                    <div className="px-5 pb-5 flex justify-center">
-                      <div className="bg-white rounded-xl p-3 shadow-md">
+                  {/* Card Body - Profile Section */}
+                  <div className="p-6 flex flex-col items-center text-center space-y-4">
+                    {/* Large Profile Image */}
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[hsl(var(--sidebar-primary))]/30 bg-[hsl(var(--sidebar-accent))] shadow-lg">
+                        {userData?.profileImageUrl ? (
+                          <img 
+                            src={userData.profileImageUrl} 
+                            alt={userData.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-3xl font-bold text-[hsl(var(--sidebar-primary-foreground))]">
+                              {getUserInitials()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* User Name and Role */}
+                    <div>
+                      <h3 className="text-xl font-bold text-[hsl(var(--sidebar-foreground))] mb-1">
+                        {userData?.name || 'Church Member'}
+                      </h3>
+                      <p className="text-xs text-[hsl(var(--sidebar-muted))] font-semibold uppercase tracking-wider">
+                        Member
+                      </p>
+                    </div>
+
+                    {/* QR Code */}
+                    {qrCodeImage && (
+                      <div className="bg-white rounded-xl p-4 shadow-md">
                         <img 
                           src={qrCodeImage} 
                           alt="User QR Code" 
-                          className="w-28 h-28 sm:w-32 sm:h-32"
+                          className="w-32 h-32"
                         />
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    )}
 
-              {/* Download Button */}
-              <div className="px-5 pb-5 sm:px-6 sm:pb-6 flex flex-col items-center gap-3">
+                    {/* Member Badge */}
+                    <div className="w-full bg-[hsl(var(--sidebar-primary))]/10 rounded-lg py-2 px-4">
+                      <p className="text-xs text-[hsl(var(--sidebar-muted))] font-bold uppercase tracking-wider">
+                        Member
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Download Button */}
                 <button
                   onClick={downloadQRCode}
-                  className="w-full max-w-[360px] flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
+                  className="w-full mt-4 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
                 >
                   <Download className="h-4 w-4" />
                   Download QR Code
                 </button>
-                <p className="text-xs text-muted-foreground text-center font-medium">
+                <p className="text-xs text-muted-foreground text-center font-medium mt-2">
                   Save this to your phone for easy access
                 </p>
               </div>
