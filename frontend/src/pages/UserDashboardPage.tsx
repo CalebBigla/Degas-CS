@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { Phone, Mail, ScanLine, Info, Download, X, LogOut, Calendar, Home, MapPin, Clock, CheckCircle2, Menu, Moon, Sun } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
+import html2canvas from 'html2canvas';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -137,14 +138,35 @@ export function UserDashboardPage() {
     navigate('/login');
   };
 
-  const downloadQRCode = () => {
-    if (!qrCodeImage) return;
-    
-    const link = document.createElement('a');
-    link.href = qrCodeImage;
-    link.download = `qr-code-${userData?.name || 'user'}.png`;
-    link.click();
-    toast.success('QR code downloaded');
+  const downloadIDCard = async () => {
+    try {
+      const idCardElement = document.getElementById('id-card-export');
+      if (!idCardElement) {
+        toast.error('ID Card not found');
+        return;
+      }
+      
+      toast.loading('Generating ID Card...');
+      
+      const canvas = await html2canvas(idCardElement, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false,
+        useCORS: true
+      });
+      
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `ID_Card_${userData?.name || 'Member'}.png`;
+      link.click();
+      
+      toast.dismiss();
+      toast.success('ID Card downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading ID Card:', error);
+      toast.dismiss();
+      toast.error('Failed to download ID Card');
+    }
   };
 
   const startScanner = () => {
@@ -536,7 +558,7 @@ export function UserDashboardPage() {
             <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
               <div className="mx-auto max-w-[400px]">
                 {/* ID Card */}
-                <div className="rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
+                <div id="id-card-export" className="rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
                   {/* Card Header */}
                   <div className="bg-[hsl(var(--sidebar-primary))]/20 px-4 py-3 flex items-center justify-between border-b border-[hsl(var(--sidebar-border))]">
                     <div className="flex items-center gap-2">
@@ -600,14 +622,14 @@ export function UserDashboardPage() {
 
                 {/* Download Button */}
                 <button
-                  onClick={downloadQRCode}
+                  onClick={downloadIDCard}
                   className="w-full mt-4 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
                 >
                   <Download className="h-4 w-4" />
-                  Download QR Code
+                  Download
                 </button>
                 <p className="text-xs text-muted-foreground text-center font-medium mt-2">
-                  Save this to your phone for easy access
+                  Save your member ID card to your phone
                 </p>
               </div>
             </div>

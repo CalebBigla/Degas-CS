@@ -521,13 +521,22 @@ class FixedUserController {
         });
       }
 
-      // Check if already scanned
-      if (user.scanned) {
-        return res.status(400).json({
-          success: false,
-          message: 'Already scanned',
-          scannedAt: user.scannedat
-        });
+      // Check if already scanned in the last 24 hours
+      if (user.scanned && user.scannedat) {
+        const lastScanTime = new Date(user.scannedat).getTime();
+        const currentTime = new Date().getTime();
+        const timeSinceLastScan = currentTime - lastScanTime;
+        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+        
+        if (timeSinceLastScan < twentyFourHoursMs) {
+          const hoursRemaining = Math.ceil((twentyFourHoursMs - timeSinceLastScan) / (60 * 60 * 1000));
+          return res.status(400).json({
+            success: false,
+            message: `Already scanned in last 24 hours. Try again in ${hoursRemaining} hours.`,
+            scannedAt: user.scannedat,
+            hoursRemaining
+          });
+        }
       }
 
       const scannedAt = new Date().toISOString();
