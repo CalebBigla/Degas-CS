@@ -9,6 +9,7 @@ import eventController from '../controllers/eventController';
 import checkInController from '../controllers/checkInController';
 import eventRegistrationController from '../controllers/eventRegistrationController';
 import { authenticateCoreUser, requireCoreRole } from '../middleware/coreAuth';
+import { requireModuleAccess } from '../middleware/authorizationMiddleware';
 import { upload } from '../middleware/upload';
 
 const router = express.Router();
@@ -31,14 +32,14 @@ router.post(
 );
 
 // ============================================================================
-// EVENT MANAGEMENT (Admin only)
+// EVENT MANAGEMENT (Admin only - requires forms module access)
 // ============================================================================
 
 // Create event
 router.post(
   '/',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.createEvent.bind(eventController)
 );
 
@@ -46,7 +47,7 @@ router.post(
 router.get(
   '/',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.getAllEvents.bind(eventController)
 );
 
@@ -57,7 +58,7 @@ router.get('/public/active', eventController.getActiveEvents.bind(eventControlle
 router.get(
   '/:id',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.getEventById.bind(eventController)
 );
 
@@ -68,7 +69,7 @@ router.get('/:id/registration-form', eventController.getEventRegistrationForm.bi
 router.put(
   '/:id',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.updateEvent.bind(eventController)
 );
 
@@ -76,7 +77,7 @@ router.put(
 router.delete(
   '/:id',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.deleteEvent.bind(eventController)
 );
 
@@ -84,7 +85,7 @@ router.delete(
 router.get(
   '/:id/stats',
   authenticateCoreUser,
-  requireCoreRole(['admin', 'super_admin']),
+  requireModuleAccess('forms'),
   eventController.getEventStats.bind(eventController)
 );
 

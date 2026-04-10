@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { getDefaultRedirectPath } from '../lib/rbac';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
@@ -9,7 +10,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, userRole } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,7 +19,9 @@ export function LoginPage() {
 
     try {
       await login(username, password);
-      navigate('/dashboard');
+      // Get the default redirect path based on user role after login
+      const redirectPath = getDefaultRedirectPath(userRole as any);
+      navigate(redirectPath);
     } catch (err) {
       setError('Invalid credentials. Please try again.');
     }
@@ -36,7 +39,7 @@ export function LoginPage() {
               </div>
             </div>
             <h1 className="text-2xl font-bold text-charcoal">The Force of Grace Ministry</h1>
-            <p className="text-gray-600 mt-2">Church Membership System</p>
+            <p className="text-gray-600 mt-2">Membership Attendance</p>
             {/* Version indicator - remove after deployment verification */}
           </div>
 

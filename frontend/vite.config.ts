@@ -24,6 +24,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globIgnores: ['_redirects'],   // ← fix: stop workbox blocking _redirects
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\./i,
@@ -32,7 +33,7 @@ export default defineConfig({
               cacheName: 'api-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxAgeSeconds: 60 * 60 * 24
               }
             }
           }
@@ -47,7 +48,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: '0.0.0.0', // Allow network access
+    host: '0.0.0.0',
     https: process.env.VITE_HTTPS === 'true' ? {
       key: './localhost+3-key.pem',
       cert: './localhost+3.pem',
@@ -90,6 +91,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    copyPublicDir: true,   // ← fix: explicitly copy public/ into dist/
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS core_users (
   password TEXT NOT NULL,
   full_name TEXT,
   phone TEXT,
-  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin', 'follow_up', 'greeter')),
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
   qr_token TEXT UNIQUE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

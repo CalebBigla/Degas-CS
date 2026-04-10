@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { useQuery } from 'react-query';
 import { api } from '../lib/api';
+import { filterNavigationByRole, canAccessModule, isAdminRole } from '../lib/rbac';
 import { 
   LayoutDashboard, 
   Users, 
@@ -63,14 +64,21 @@ export function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: `${pathPrefix}/dashboard`, icon: LayoutDashboard, external: false },
-    { name: 'Tables', href: `${pathPrefix}/tables`, icon: Users, external: false },
-    { name: 'Forms', href: `${pathPrefix}/forms`, icon: FileText, external: false },
-    { name: 'Scanner', href: '/scanner.html', icon: ScanLine, external: true },
-    { name: 'Access Logs', href: `${pathPrefix}/access-logs`, icon: FileText, external: false },
-    { name: 'Analytics', href: `${pathPrefix}/analytics`, icon: BarChart3, external: false },
+  // Define all navigation items
+  const allNavigation = [
+    { name: 'Dashboard', module: 'dashboard', href: `${pathPrefix}/dashboard`, icon: LayoutDashboard, external: false },
+    { name: 'Tables', module: 'tables', href: `${pathPrefix}/tables`, icon: Users, external: false },
+    { name: 'Forms', module: 'forms', href: `${pathPrefix}/forms`, icon: FileText, external: false },
+    { name: 'Scanner', module: 'scanner', href: '/scanner.html', icon: ScanLine, external: true },
+    { name: 'Access Logs', module: 'access-logs', href: `${pathPrefix}/access-logs`, icon: FileText, external: false },
+    { name: 'Analytics', module: 'analytics', href: `${pathPrefix}/analytics`, icon: BarChart3, external: false },
   ];
+
+  // Filter navigation based on user role
+  const userRoleValue = userRole as any;
+  const filteredNavigation = allNavigation.filter(item => 
+    canAccessModule(userRoleValue, item.module)
+  );
 
   const userInitial = (admin?.username || user?.email)?.charAt(0).toUpperCase() || 'U';
   const userName = admin?.username || user?.email || 'User';
@@ -113,7 +121,7 @@ export function Layout({ children }: LayoutProps) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-6 px-3">
           <div className="space-y-1.5">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const isActive = !item.external && (
                 location.pathname === item.href || 
                 (item.href.includes('/tables') && location.pathname.startsWith(item.href))

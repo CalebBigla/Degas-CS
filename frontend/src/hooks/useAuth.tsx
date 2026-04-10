@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 export interface User {
   id: string;
   email: string;
-  role: 'user' | 'admin' | 'super_admin';
+  role: 'user' | 'admin' | 'super_admin' | 'follow_up' | 'greeter';
 }
 
 interface AuthContextType {
@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  userRole: 'user' | 'admin' | 'super_admin' | null;
+  userRole: 'user' | 'admin' | 'super_admin' | 'follow_up' | 'greeter' | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   restoreSession: () => Promise<void>;

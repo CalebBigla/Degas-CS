@@ -20,6 +20,7 @@ import { ProtectedRoute, AdminRoute, UserRoute } from './components/ProtectedRou
 import { UserScannerPage } from './pages/UserScannerPage';
 import { QRScannerPage } from './pages/QRScannerPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
+import { isAdminRole, isStaffRole } from './lib/rbac';
 
 function App() {
   const { isAuthenticated, isLoading, userRole, admin, user } = useAuth();
@@ -46,13 +47,38 @@ function App() {
     );
   }
 
-  // Determine if user is admin or regular user
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  // Determine user type based on role
+  const isAdmin = isAdminRole(userRole as any);
+  const isStaff = isStaffRole(userRole as any);
+  const isGreeter = userRole === 'greeter';
+  const isFollowUp = userRole === 'follow_up';
 
   return (
     <ThemeProvider>
-      {isAdmin ? (
-        // Admin Routes
+      {isGreeter ? (
+        // Greeter: Scanner only
+        <Routes>
+          <Route path="/" element={<Navigate to="/scanner" replace />} />
+          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="*" element={<Navigate to="/scanner" replace />} />
+        </Routes>
+      ) : isFollowUp ? (
+        // Follow-Up: Dashboard and Access Logs with Layout
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/access-logs" element={<AttendanceReportPage />} />
+            {/* Block all other admin routes */}
+            <Route path="/admin/tables" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/forms" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/scanner" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/admin/analytics" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </Layout>
+      ) : isAdmin ? (
+        // Admin/Super Admin Routes (full access)
         <Layout>
           <Routes>
             <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
@@ -73,7 +99,7 @@ function App() {
           </Routes>
         </Layout>
       ) : (
-        // User Routes
+        // Regular User Routes
         <Routes>
           <Route path="/" element={<Navigate to="/user/dashboard" replace />} />
           <Route path="/user/dashboard" element={<UserDashboardPage />} />
