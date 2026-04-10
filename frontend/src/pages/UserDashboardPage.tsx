@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Phone, Mail, ScanLine, Info, Download, X, LogOut, Calendar, Home, MapPin, Clock, Users as UsersIcon, CheckCircle2 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { Phone, Mail, ScanLine, Info, Download, X, LogOut, Calendar, Home, MapPin, Clock, CheckCircle2, Menu, Moon, Sun } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -10,7 +11,8 @@ type TabType = 'dashboard' | 'events';
 
 export function UserDashboardPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [userData, setUserData] = useState<any>(null);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export function UserDashboardPage() {
   const [cameraError, setCameraError] = useState<string>('');
   const [events, setEvents] = useState<any[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -99,40 +102,28 @@ export function UserDashboardPage() {
       // const response = await api.get('/events/upcoming');
       // setEvents(response.data.data);
       
-      // Enhanced mock data matching the design
+      // Enhanced mock data with updated content
       setEvents([
         {
           id: '1',
-          title: 'Sunday Worship Service',
-          date: '2026-04-13',
-          time: '9:00 AM - 12:00 PM',
-          location: 'Main Auditorium',
-          description: 'Weekly worship gathering with praise, sermon, and fellowship.',
-          requiresRegistration: false,
-          spotsLeft: 124,
-          status: 'registered'
-        },
-        {
-          id: '2',
-          title: 'Youth Conference 2026',
-          date: '2026-04-25',
-          endDate: '2026-04-27',
-          time: '10:00 AM - 6:00 PM',
-          location: 'Conference Hall B',
-          description: 'A 3-day conference for young adults featuring workshops, panels, and worship sessions.',
+          title: 'Mentorship Conference',
+          date: '2026-04-20',
+          endDate: '2026-04-22',
+          time: '9:00 AM - 5:00 PM',
+          location: 'Main Conference Hall',
+          description: 'A transformative 3-day conference focused on spiritual mentorship, leadership development, and building lasting relationships.',
           requiresRegistration: true,
-          spotsLeft: 43,
           status: 'upcoming'
         },
         {
-          id: '3',
-          title: 'Community Outreach Program',
-          date: '2026-05-03',
-          time: '8:00 AM - 2:00 PM',
-          location: 'Community Center',
-          description: 'Join us for a day of service — food distribution, mentorship, and neighborhood clean-up.',
+          id: '2',
+          title: 'Refresh Conference',
+          date: '2026-05-15',
+          endDate: '2026-05-17',
+          time: '10:00 AM - 6:00 PM',
+          location: 'Grace Center Auditorium',
+          description: 'Experience spiritual renewal and refreshing through powerful worship, inspiring messages, and fellowship with believers.',
           requiresRegistration: true,
-          spotsLeft: 67,
           status: 'upcoming'
         }
       ]);
@@ -306,41 +297,115 @@ export function UserDashboardPage() {
         </div>
       )}
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[720px] mx-auto space-y-5 sm:space-y-6 animate-fade-in">
-        {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
-          </h1>
-          <p className="text-sm text-muted-foreground font-medium">User Dashboard</p>
-        </div>
+      {/* Mobile App Style Header */}
+      <div className="bg-gradient-to-br from-primary via-primary to-accent p-6 pb-8 shadow-lg">
+        <div className="max-w-[720px] mx-auto">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between mb-6">
+            {/* Hamburger Menu */}
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Menu"
+            >
+              <Menu className="h-6 w-6 text-white" />
+            </button>
 
-        {/* Tab Navigation */}
-        <div className="rounded-2xl border border-border bg-card p-1.5 flex gap-1.5 shadow-sm">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-            }`}
-          >
-            <Home className="h-4 w-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('events')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-              activeTab === 'events'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-            }`}
-          >
-            <Calendar className="h-4 w-4" />
-            Events
-          </button>
-        </div>
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? (
+                <Moon className="h-6 w-6 text-white" />
+              ) : (
+                <Sun className="h-6 w-6 text-white" />
+              )}
+            </button>
+          </div>
 
+          {/* Welcome Text */}
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+              Welcome, <span className="text-white/90">{userData?.name?.split(' ')[0] || 'Church'}</span>
+            </h1>
+            <p className="text-white/80 text-sm font-medium">User Dashboard</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Slide-out Menu */}
+      {showMenu && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-fade-in"
+            onClick={() => setShowMenu(false)}
+          />
+          
+          {/* Menu Panel */}
+          <div className="fixed top-0 left-0 bottom-0 w-72 bg-card border-r border-border z-50 shadow-2xl animate-slide-in-left">
+            <div className="p-6">
+              {/* Menu Header */}
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-xl font-bold text-foreground">Menu</h2>
+                <button
+                  onClick={() => setShowMenu(false)}
+                  className="p-2 hover:bg-accent/10 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5 text-foreground" />
+                </button>
+              </div>
+
+              {/* Menu Items */}
+              <nav className="space-y-2">
+                <button
+                  onClick={() => {
+                    setActiveTab('dashboard');
+                    setShowMenu(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    activeTab === 'dashboard'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-foreground hover:bg-accent/50'
+                  }`}
+                >
+                  <Home className="h-5 w-5" />
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('events');
+                    setShowMenu(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    activeTab === 'events'
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-foreground hover:bg-accent/50'
+                  }`}
+                >
+                  <Calendar className="h-5 w-5" />
+                  Events
+                </button>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setShowMenu(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-destructive hover:bg-destructive/10 transition-all"
+                >
+                  <LogOut className="h-5 w-5" />
+                  Logout
+                </button>
+              </nav>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[720px] mx-auto space-y-5 sm:space-y-6 -mt-4 relative z-10">
         {/* Dashboard Tab Content */}
         {activeTab === 'dashboard' && (
           <>
@@ -649,16 +714,6 @@ export function UserDashboardPage() {
                           <p className="text-sm font-bold text-foreground">{event.location}</p>
                         </div>
                       </div>
-                      
-                      {event.spotsLeft && (
-                        <div className="flex items-start gap-2 col-span-2">
-                          <UsersIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs text-muted-foreground font-semibold mb-0.5">Availability</p>
-                            <p className="text-sm font-bold text-foreground">{event.spotsLeft} spots left</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {/* Action Button */}
@@ -690,17 +745,6 @@ export function UserDashboardPage() {
             )}
           </div>
         )}
-
-        {/* Logout Button */}
-        <div className="pt-3">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 border-2 border-border bg-card text-foreground rounded-xl font-semibold text-sm hover:bg-destructive/10 hover:border-destructive/20 hover:text-destructive transition-all shadow-sm"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
-        </div>
       </div>
     </div>
   );
