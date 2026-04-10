@@ -2,6 +2,8 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
+import { useQuery } from 'react-query';
+import { api } from '../lib/api';
 import { 
   LayoutDashboard, 
   Users, 
@@ -35,6 +37,26 @@ export function Layout({ children }: LayoutProps) {
   
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
   const pathPrefix = isAdmin ? '/admin' : '/user';
+
+  // Fetch recent registrations for notification count
+  const { data: recentRegistrations } = useQuery(
+    'recentRegistrations',
+    async () => {
+      const response = await api.get('/analytics/recent-registrations?limit=10');
+      return response.data.data || [];
+    },
+    {
+      refetchInterval: 5000, // Refresh every 5 seconds
+      enabled: isAdmin // Only fetch for admins
+    }
+  );
+
+  // Count unread notifications (registrations in last 24 hours)
+  const notificationCount = recentRegistrations?.filter((reg: any) => {
+    const regDate = new Date(reg.createdAt);
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return regDate > dayAgo;
+  }).length || 0;
 
   const handleLogout = () => {
     logout();
@@ -175,7 +197,7 @@ export function Layout({ children }: LayoutProps) {
         sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
       )}>
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-card backdrop-blur supports-[backdrop-filter]:bg-card/95 px-4 sm:px-6 lg:px-8">
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -196,13 +218,16 @@ export function Layout({ children }: LayoutProps) {
               <input
                 type="text"
                 placeholder="Search anything..."
-                className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-lg text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
               />
             </div>
           </div>
 
+          {/* Spacer to push right section to the right */}
+          <div className="flex-1" />
+
           {/* Right Section */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
@@ -223,15 +248,19 @@ export function Layout({ children }: LayoutProps) {
               aria-label="Notifications"
             >
               <Bell className="h-5 w-5 text-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-card"></span>
+              {notificationCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] flex items-center justify-center bg-destructive text-destructive-foreground text-xs font-semibold rounded-full ring-2 ring-card px-1">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </span>
+              )}
             </button>
 
             {/* Divider */}
-            <div className="hidden sm:block h-8 w-px bg-border" />
+            <div className="hidden sm:block h-8 w-px bg-border mx-2" />
 
             {/* Profile Section */}
             <div className="flex items-center gap-3">
-              <div className="hidden md:block text-right">
+              <div className="hidden md:block text-right mr-2">
                 <div className="text-sm font-medium text-foreground leading-tight">{displayName}</div>
                 <div className="text-xs text-muted-foreground capitalize">{userRole?.replace('_', ' ')}</div>
               </div>
@@ -245,9 +274,13 @@ export function Layout({ children }: LayoutProps) {
                   </span>
                 </div>
               </button>
+              
+              {/* Spacing between profile and logout */}
+              <div className="w-px h-6 bg-border mx-1" />
+              
               <button
                 onClick={handleLogout}
-                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all ml-1"
                 title="Logout"
                 aria-label="Logout"
               >

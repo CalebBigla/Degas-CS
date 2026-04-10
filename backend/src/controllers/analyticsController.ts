@@ -594,3 +594,111 @@ export const getScanStats = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+
+/**
+ * Get dashboard statistics
+ * - Total Members: Count of all users in users table
+ * - Present: Count of users where scanned = true
+ * - Absent: Count of users where scanned = false
+ * - Programs: Count of dynamic tables
+ * GET /api/analytics/dashboard-stats
+ */
+export const getDashboardStatsNew = async (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+
+    logger.info('📊 [getDashboardStatsNew] Fetching dashboard statistics');
+
+    // Get total members from users table
+    const totalMembersResult = await db.get('SELECT COUNT(*) as count FROM users');
+    const totalMembers = parseInt(totalMembersResult?.count || '0');
+
+    // Get present count (scanned = true)
+    const presentResult = await db.get(
+      dbType === 'sqlite' 
+        ? 'SELECT COUNT(*) as count FROM users WHERE scanned = 1'
+        : 'SELECT COUNT(*) as count FROM users WHERE scanned = true'
+    );
+    const present = parseInt(presentResult?.count || '0');
+
+    // Get absent count (scanned = false or null)
+    const absent = totalMembers - present;
+
+    // Get programs count (dynamic tables)
+    const programsResult = await db.get('SELECT COUNT(*) as count FROM tables');
+    const programs = parseInt(programsResult?.count || '0');
+
+    const stats = {
+      totalMembers,
+      present,
+      absent,
+      programs
+    };
+
+    logger.info('✅ [getDashboardStatsNew] Success:', stats);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    logger.error('🔥 [getDashboardStatsNew] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dashboard statistics',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
+/**
+ * Get recent registrations
+ * Returns the most recent user registrations from users table
+ * GET /api/analytics/recent-registrations?limit=10
+ */
+export const getRecentRegistrations = async (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDatabase();
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    logger.info(`📊 [getRecentRegistrations] Fetching last ${limit} registrations`);
+
+    // Get recent registrations ordered by creation date
+    const registrations = await db.all(`
+      SELECT 
+        id,
+        name,
+        email,
+        createdat as createdAt
+      FROM users
+      ORDER BY createdat DESC
+      LIMIT ?
+    `, [limit]);
+
+    logger.info(`✅ [getRecentRegistrations] Found ${registrations.length} registrations`);
+
+    res.json({
+      success: true,
+      data: registrations
+    });
+
+  } catch (error) {
+    logger.error('🔥 [getRecentRegistrations] Error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recent registrations',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
