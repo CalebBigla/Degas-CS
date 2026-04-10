@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, QrCode, CheckCircle, XCircle, Download, Camera, X } from 'lucide-react';
+import { Phone, Mail, ScanLine, Info, Download, X, LogOut, Calendar, Home, MapPin, Clock, Users as UsersIcon, CheckCircle2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
+type TabType = 'dashboard' | 'events';
+
 export function UserDashboardPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [userData, setUserData] = useState<any>(null);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,13 +20,15 @@ export function UserDashboardPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [cameraError, setCameraError] = useState<string>('');
+  const [events, setEvents] = useState<any[]>([]);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
+    loadEvents();
   }, []);
 
   useEffect(() => {
-    // Cleanup scanner on unmount
     return () => {
       if (scannerRef.current) {
         scannerRef.current.stop().catch(console.error);
@@ -32,51 +37,36 @@ export function UserDashboardPage() {
   }, []);
 
   useEffect(() => {
-    // Initialize scanner when showScanner becomes true
     if (showScanner && scanning && !scanResult) {
       initializeScanner();
     }
   }, [showScanner, scanning, scanResult]);
 
   const initializeScanner = async () => {
-    // Wait a bit for DOM to be ready
     await new Promise(resolve => setTimeout(resolve, 200));
 
     try {
-      // Check if element exists
       const element = document.getElementById('qr-reader');
       if (!element) {
         throw new Error('Scanner element not found. Please try again.');
       }
 
-      // Initialize scanner
       const html5QrCode = new Html5Qrcode('qr-reader');
       scannerRef.current = html5QrCode;
 
-      console.log('🎥 Starting camera...');
-
-      // Start scanning
       await html5QrCode.start(
-        { facingMode: 'environment' }, // Use back camera on mobile
+        { facingMode: 'environment' },
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0
         },
         (decodedText) => {
-          // Success callback
-          console.log('📱 QR Code detected:', decodedText);
           handleScanSuccess(decodedText);
         },
-        (errorMessage) => {
-          // Error callback (fires continuously while scanning)
-          // We can ignore these as they're just "no QR code found" messages
-        }
+        () => {}
       );
-
-      console.log('✅ Camera started successfully');
     } catch (error: any) {
-      console.error('❌ Camera error:', error);
       const errorMsg = error.message || 'Failed to access camera';
       setCameraError(errorMsg);
       toast.error(errorMsg);
@@ -86,13 +76,11 @@ export function UserDashboardPage() {
 
   const loadUserData = async () => {
     try {
-      // Get user data from localStorage
       const storedUser = localStorage.getItem('degas_user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
         setUserData(parsedUser);
         
-        // Use QR code from login response if available
         if (parsedUser.qrCode) {
           setQrCodeImage(parsedUser.qrCode);
         }
@@ -102,6 +90,54 @@ export function UserDashboardPage() {
       toast.error('Failed to load user data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEvents = async () => {
+    try {
+      // TODO: Replace with actual API call when events endpoint is ready
+      // const response = await api.get('/events/upcoming');
+      // setEvents(response.data.data);
+      
+      // Enhanced mock data matching the design
+      setEvents([
+        {
+          id: '1',
+          title: 'Sunday Worship Service',
+          date: '2026-04-13',
+          time: '9:00 AM - 12:00 PM',
+          location: 'Main Auditorium',
+          description: 'Weekly worship gathering with praise, sermon, and fellowship.',
+          requiresRegistration: false,
+          spotsLeft: 124,
+          status: 'registered'
+        },
+        {
+          id: '2',
+          title: 'Youth Conference 2026',
+          date: '2026-04-25',
+          endDate: '2026-04-27',
+          time: '10:00 AM - 6:00 PM',
+          location: 'Conference Hall B',
+          description: 'A 3-day conference for young adults featuring workshops, panels, and worship sessions.',
+          requiresRegistration: true,
+          spotsLeft: 43,
+          status: 'upcoming'
+        },
+        {
+          id: '3',
+          title: 'Community Outreach Program',
+          date: '2026-05-03',
+          time: '8:00 AM - 2:00 PM',
+          location: 'Community Center',
+          description: 'Join us for a day of service — food distribution, mentorship, and neighborhood clean-up.',
+          requiresRegistration: true,
+          spotsLeft: 67,
+          status: 'upcoming'
+        }
+      ]);
+    } catch (error) {
+      console.error('Error loading events:', error);
     }
   };
 
@@ -125,7 +161,6 @@ export function UserDashboardPage() {
     setScanning(true);
     setScanResult(null);
     setCameraError('');
-    // Scanner will be initialized by useEffect
   };
 
   const stopScanner = async () => {
@@ -133,7 +168,6 @@ export function UserDashboardPage() {
       try {
         await scannerRef.current.stop();
         scannerRef.current = null;
-        console.log('✅ Camera stopped');
       } catch (error) {
         console.error('Error stopping camera:', error);
       }
@@ -144,7 +178,6 @@ export function UserDashboardPage() {
   };
 
   const handleScanSuccess = async (scannedData: string) => {
-    // Stop scanning immediately
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
@@ -156,9 +189,6 @@ export function UserDashboardPage() {
     setScanning(false);
     
     try {
-      console.log('📱 Processing scanned data:', scannedData);
-      
-      // Get userId from stored user data
       const storedUser = localStorage.getItem('degas_user');
       if (!storedUser) {
         throw new Error('User not logged in');
@@ -171,43 +201,30 @@ export function UserDashboardPage() {
         throw new Error('User ID not found');
       }
       
-      console.log('👤 User ID:', userId);
-      
-      // Call the scan endpoint with the scanned QR data and userId
       const response = await api.post('/form/scan', {
         qrData: scannedData,
         userId: userId
       });
 
-      console.log('✅ Scan response:', response.data);
-      
       if (response.data.success) {
-        setScanResult({
-          success: true,
-          message: response.data.message || 'Attendance marked successfully!',
-          scannedAt: response.data.scannedAt
-        });
-        
-        // Update local user data
         const updatedUser = { ...userData, scanned: true, scannedAt: response.data.scannedAt };
         setUserData(updatedUser);
         localStorage.setItem('degas_user', JSON.stringify(updatedUser));
         
+        // Show welcome modal
+        setShowWelcomeModal(true);
+        
+        // Hide modal after 5 seconds
+        setTimeout(() => {
+          setShowWelcomeModal(false);
+        }, 5000);
+        
         toast.success('Attendance marked successfully!');
       } else {
-        setScanResult({
-          success: false,
-          message: response.data.message || 'Scan failed'
-        });
         toast.error(response.data.message || 'Scan failed');
       }
     } catch (error: any) {
-      console.error('❌ Scan error:', error);
       const errorMsg = error.response?.data?.message || 'Failed to mark attendance';
-      setScanResult({
-        success: false,
-        message: errorMsg
-      });
       toast.error(errorMsg);
     }
   };
@@ -225,238 +242,466 @@ export function UserDashboardPage() {
     await handleScanSuccess(qrData);
   };
 
+  const getUserInitials = () => {
+    if (!userData?.name) return 'U';
+    return userData.name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleEventRegistration = (eventId: string) => {
+    toast.success('Registration feature coming soon!');
+    // TODO: Implement event registration
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white">Loading dashboard...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground">Loading dashboard...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 p-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Welcome, {userData?.name || user?.email}</h1>
-            <p className="text-gray-400 mt-1">User Dashboard</p>
+    <div className="min-h-screen bg-background">
+      {/* Welcome Modal */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-3xl p-8 sm:p-12 max-w-md mx-4 shadow-2xl animate-scale-in border border-border">
+            <div className="text-center space-y-6">
+              {/* Profile Image or Initials */}
+              <div className="mx-auto w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-primary/20">
+                {userData?.profileImageUrl ? (
+                  <img 
+                    src={userData.profileImageUrl} 
+                    alt={userData.name}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="text-3xl font-bold text-primary">
+                    {getUserInitials()}
+                  </span>
+                )}
+              </div>
+              
+              {/* Welcome Message */}
+              <div className="space-y-2">
+                <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+                  {userData?.name || 'Welcome'}
+                </h2>
+                <p className="text-base sm:text-lg text-muted-foreground font-medium">
+                  Welcome to The Force of Grace Ministry
+                </p>
+              </div>
+              
+              {/* Success Icon */}
+              <div className="pt-2">
+                <CheckCircle2 className="h-16 w-16 text-success mx-auto animate-bounce-slow" />
+              </div>
+            </div>
           </div>
+        </div>
+      )}
+
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[720px] mx-auto space-y-5 sm:space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
+          </h1>
+          <p className="text-sm text-muted-foreground font-medium">User Dashboard</p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="rounded-2xl border border-border bg-card p-1.5 flex gap-1.5 shadow-sm">
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === 'dashboard'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            }`}
           >
-            <LogOut size={18} />
-            Logout
+            <Home className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === 'events'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            Events
           </button>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto p-6">
-        {/* User Info Card */}
-        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6">
-          <h2 className="text-xl font-bold mb-4">Your Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-400 text-sm">Name</p>
-              <p className="text-white font-medium">{userData?.name || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Email</p>
-              <p className="text-white font-medium">{userData?.email || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Phone</p>
-              <p className="text-white font-medium">{userData?.phone || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm">Status</p>
-              <p className="text-white font-medium flex items-center gap-2">
-                {userData?.scanned ? (
-                  <>
-                    <CheckCircle size={16} className="text-green-400" />
-                    <span className="text-green-400">Scanned</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle size={16} className="text-yellow-400" />
-                    <span className="text-yellow-400">Not Scanned</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Scanner Section - Only show if not scanned */}
-        {!userData?.scanned && !showScanner && (
-          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 p-6 rounded-lg border border-blue-600 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold mb-2">Mark Your Attendance</h3>
-                <p className="text-gray-300">Scan the form QR code to mark your attendance</p>
+        {/* Dashboard Tab Content */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* User Info Card */}
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
+              <h2 className="text-base font-bold text-foreground mb-5">Your Information</h2>
+              <div className="flex items-start gap-4 sm:gap-5">
+                {/* Profile Image */}
+                <div className="shrink-0">
+                  {userData?.profileImageUrl ? (
+                    <img 
+                      src={userData.profileImageUrl} 
+                      alt={userData.name}
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-border"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-muted flex items-center justify-center border-2 border-border">
+                      <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">
+                        {getUserInitials()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* User Details */}
+                <div className="flex-1 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Name</p>
+                    <p className="text-sm sm:text-base font-semibold text-foreground truncate">{userData?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Email</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground truncate">{userData?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Phone</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground">{userData?.phone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Status</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${userData?.scanned ? 'bg-success' : 'bg-warning'} animate-pulse`} />
+                      <p className={`text-sm sm:text-base font-bold ${userData?.scanned ? 'text-success' : 'text-warning'}`}>
+                        {userData?.scanned ? 'Scanned' : 'Not Scanned'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={startScanner}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-medium"
-              >
-                <Camera size={20} />
-                Open Scanner
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Scanner Modal */}
-        {showScanner && (
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Scan Form QR Code</h2>
-              <button
-                onClick={stopScanner}
-                className="text-gray-400 hover:text-white flex items-center gap-2"
-              >
-                <X size={20} />
-                Close
-              </button>
             </div>
 
-            {!scanResult ? (
-              <>
-                {/* Camera Scanner */}
+            {/* Mark Attendance */}
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h2 className="text-base font-bold text-foreground mb-1">Mark Your Attendance</h2>
+                  <p className="text-sm text-muted-foreground font-medium">Scan the form QR code to mark your attendance</p>
+                </div>
+                <button
+                  onClick={startScanner}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all shadow-md hover:shadow-lg shrink-0"
+                >
+                  <ScanLine className="h-4 w-4" />
+                  Open Scanner
+                </button>
+              </div>
+            </div>
+
+            {/* Scanner Section */}
+            {showScanner && (
+              <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-base font-bold text-foreground">Scan Form QR Code</h2>
+                  <button
+                    onClick={stopScanner}
+                    className="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5 text-foreground" />
+                  </button>
+                </div>
+
                 {scanning && !cameraError && (
-                  <div className="mb-4">
+                  <div className="mb-5">
                     <div 
                       id="qr-reader" 
-                      className="rounded-lg overflow-hidden"
+                      className="rounded-xl overflow-hidden border-2 border-border shadow-inner"
                       style={{ width: '100%' }}
                     ></div>
-                    <p className="text-center text-sm text-gray-400 mt-3">
+                    <p className="text-center text-sm text-muted-foreground font-medium mt-4">
                       Position the QR code within the frame
                     </p>
                   </div>
                 )}
 
-                {/* Camera Error */}
                 {cameraError && (
-                  <div className="bg-red-900/30 border border-red-600 rounded-lg p-4 mb-4">
-                    <p className="text-red-200 text-sm">
-                      <strong>Camera Error:</strong> {cameraError}
+                  <div className="bg-destructive/10 border-2 border-destructive/20 rounded-xl p-5 mb-5">
+                    <p className="text-destructive text-sm font-semibold">
+                      Camera Error: {cameraError}
                     </p>
-                    <p className="text-red-200 text-sm mt-2">
+                    <p className="text-destructive text-sm mt-2">
                       Please ensure you've granted camera permissions and try again.
                     </p>
                   </div>
                 )}
 
-                {/* Manual Input Fallback */}
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <h3 className="text-lg font-semibold mb-3">Or Enter Manually</h3>
+                <div className="mt-5 pt-5 border-t border-border">
+                  <h3 className="text-sm font-bold text-foreground mb-3">Or Enter Manually</h3>
                   <form onSubmit={handleManualInput} className="space-y-3">
                     <textarea
                       name="qrData"
                       placeholder="Paste the form QR code data here..."
-                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 h-24"
+                      className="w-full px-4 py-3 bg-background border-2 border-input rounded-xl text-foreground placeholder:text-muted-foreground text-sm h-24 focus:outline-none focus:ring-2 focus:ring-ring font-medium"
                     />
                     <button
                       type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium"
+                      className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md"
                     >
                       Submit
                     </button>
                   </form>
                 </div>
-              </>
+              </div>
+            )}
+
+            {/* ID Card with QR */}
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+              <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+                <h2 className="text-base font-bold text-foreground mb-1">Your ID Card</h2>
+                <p className="text-sm text-muted-foreground font-medium">Show this to the admin to mark your attendance</p>
+              </div>
+              
+              <div className="p-5 sm:p-6">
+                <div className="mx-auto max-w-[360px] rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
+                  {/* Card Header */}
+                  <div className="bg-[hsl(var(--sidebar-primary))]/20 px-5 py-3.5 flex items-center justify-between border-b border-[hsl(var(--sidebar-border))]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-[hsl(var(--sidebar-primary))] flex items-center justify-center shadow-sm">
+                        <span className="text-[11px] font-bold text-white">TFG</span>
+                      </div>
+                      <span className="text-xs text-[hsl(var(--sidebar-foreground))] font-semibold tracking-wide">The Force of Grace Ministry</span>
+                    </div>
+                    <span className="text-[10px] text-[hsl(var(--sidebar-muted))] font-mono">
+                      {userData?.id?.substring(0, 8) || 'USR-00000'}
+                    </span>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="px-5 py-5 flex items-start gap-4">
+                    {/* Profile Image */}
+                    <div className="shrink-0">
+                      {userData?.profileImageUrl ? (
+                        <img 
+                          src={userData.profileImageUrl} 
+                          alt={userData.name}
+                          className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl object-cover border-2 border-[hsl(var(--sidebar-primary))]/30 shadow-md"
+                        />
+                      ) : (
+                        <div className="h-16 w-16 sm:h-18 sm:w-18 rounded-xl border-2 border-[hsl(var(--sidebar-primary))]/30 bg-[hsl(var(--sidebar-accent))] flex items-center justify-center shadow-md">
+                          <span className="text-[hsl(var(--sidebar-primary-foreground))] text-lg sm:text-xl font-bold">
+                            {getUserInitials()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0 space-y-2.5">
+                      <div>
+                        <p className="text-base sm:text-lg font-bold leading-tight truncate text-[hsl(var(--sidebar-foreground))]">
+                          {userData?.name || 'User'}
+                        </p>
+                        <p className="text-xs text-[hsl(var(--sidebar-muted))] mt-1 font-semibold uppercase tracking-wide">
+                          Member
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 text-[hsl(var(--sidebar-foreground))]">
+                          <Phone className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--sidebar-muted))]" />
+                          <span className="text-xs font-medium">{userData?.phone || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[hsl(var(--sidebar-foreground))]">
+                          <Mail className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--sidebar-muted))]" />
+                          <span className="text-xs font-medium truncate">{userData?.email || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* QR Code Section */}
+                  {qrCodeImage && (
+                    <div className="px-5 pb-5 flex justify-center">
+                      <div className="bg-white rounded-xl p-3 shadow-md">
+                        <img 
+                          src={qrCodeImage} 
+                          alt="User QR Code" 
+                          className="w-28 h-28 sm:w-32 sm:h-32"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Download Button */}
+              <div className="px-5 pb-5 sm:px-6 sm:pb-6 flex flex-col items-center gap-3">
+                <button
+                  onClick={downloadQRCode}
+                  className="w-full max-w-[360px] flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
+                >
+                  <Download className="h-4 w-4" />
+                  Download QR Code
+                </button>
+                <p className="text-xs text-muted-foreground text-center font-medium">
+                  Save this to your phone for easy access
+                </p>
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-5 sm:p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                  <Info className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-foreground mb-3">Two ways to mark attendance:</h3>
+                  <ol className="text-sm text-muted-foreground space-y-2.5 list-decimal list-inside font-medium">
+                    <li>
+                      <strong className="text-foreground font-semibold">Self-Service:</strong> Use the scanner above to scan the form QR code displayed at the entrance
+                    </li>
+                    <li>
+                      <strong className="text-foreground font-semibold">Admin Scan:</strong> Show your QR code (above) to the admin and they will scan it
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Events Tab Content */}
+        {activeTab === 'events' && (
+          <div className="space-y-5">
+            {/* Header Card */}
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
+              <h2 className="text-base font-bold text-foreground mb-1">Upcoming Events</h2>
+              <p className="text-sm text-muted-foreground font-medium">
+                Register for programs and events that require verification
+              </p>
+            </div>
+
+            {events.length > 0 ? (
+              <div className="space-y-4">
+                {events.map((event) => (
+                  <div key={event.id} className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
+                    {/* Event Header */}
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-bold text-foreground">{event.title}</h3>
+                          <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg uppercase tracking-wide ${
+                            event.status === 'registered' 
+                              ? 'bg-success/10 text-success' 
+                              : 'bg-primary/10 text-primary'
+                          }`}>
+                            {event.status === 'registered' ? 'Registered' : 'Upcoming'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+                          {event.description}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Event Details Grid */}
+                    <div className="grid grid-cols-2 gap-4 mb-5 p-4 bg-muted/30 rounded-xl">
+                      <div className="flex items-start gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground font-semibold mb-0.5">
+                            {event.endDate ? 'Date Range' : 'Date'}
+                          </p>
+                          <p className="text-sm font-bold text-foreground">
+                            {new Date(event.date).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            })}
+                            {event.endDate && ` - ${new Date(event.endDate).getDate()}, ${new Date(event.endDate).getFullYear()}`}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground font-semibold mb-0.5">Time</p>
+                          <p className="text-sm font-bold text-foreground">{event.time}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-2 col-span-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground font-semibold mb-0.5">Location</p>
+                          <p className="text-sm font-bold text-foreground">{event.location}</p>
+                        </div>
+                      </div>
+                      
+                      {event.spotsLeft && (
+                        <div className="flex items-start gap-2 col-span-2">
+                          <UsersIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs text-muted-foreground font-semibold mb-0.5">Availability</p>
+                            <p className="text-sm font-bold text-foreground">{event.spotsLeft} spots left</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Button */}
+                    {event.status === 'registered' ? (
+                      <div className="flex items-center justify-center gap-2 py-3 bg-success/10 rounded-xl">
+                        <CheckCircle2 className="h-5 w-5 text-success" />
+                        <span className="text-sm font-bold text-success">Registered</span>
+                      </div>
+                    ) : event.requiresRegistration ? (
+                      <button
+                        onClick={() => handleEventRegistration(event.id)}
+                        className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                      >
+                        Register
+                        <span className="text-lg">→</span>
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="text-center py-8">
-                {scanResult.success ? (
-                  <>
-                    <CheckCircle size={64} className="mx-auto text-green-400 mb-4" />
-                    <h3 className="text-2xl font-bold text-green-400 mb-2">Success!</h3>
-                    <p className="text-gray-300 mb-4">{scanResult.message}</p>
-                    {scanResult.scannedAt && (
-                      <p className="text-sm text-gray-400">
-                        Scanned at: {new Date(scanResult.scannedAt).toLocaleString()}
-                      </p>
-                    )}
-                    <button
-                      onClick={stopScanner}
-                      className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
-                    >
-                      Close
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <XCircle size={64} className="mx-auto text-red-400 mb-4" />
-                    <h3 className="text-2xl font-bold text-red-400 mb-2">Failed</h3>
-                    <p className="text-gray-300 mb-4">{scanResult.message}</p>
-                    <button
-                      onClick={() => {
-                        setScanResult(null);
-                        startScanner();
-                      }}
-                      className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
-                    >
-                      Try Again
-                    </button>
-                  </>
-                )}
+              <div className="rounded-2xl border border-border bg-card p-12 sm:p-16 text-center shadow-sm">
+                <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-40" />
+                <p className="text-base font-bold text-foreground mb-2">No upcoming events</p>
+                <p className="text-sm text-muted-foreground font-medium">
+                  Check back later for new events and programs
+                </p>
               </div>
             )}
           </div>
         )}
 
-        {/* QR Code Section */}
-        <div className="bg-gray-800 p-8 rounded-lg border border-gray-700 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <QrCode size={24} className="text-blue-400" />
-            <h2 className="text-2xl font-bold">Your QR Code</h2>
-          </div>
-          
-          <p className="text-gray-400 mb-6">
-            Show this QR code to the admin to mark your attendance
-          </p>
-
-          {qrCodeImage && (
-            <div className="bg-white p-6 rounded-lg inline-block mb-6">
-              <img 
-                src={qrCodeImage} 
-                alt="User QR Code" 
-                className="w-64 h-64 mx-auto"
-              />
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <button
-              onClick={downloadQRCode}
-              className="w-full max-w-md mx-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium"
-            >
-              <Download size={20} />
-              Download QR Code
-            </button>
-            
-            <p className="text-sm text-gray-400">
-              Save this QR code to your phone for easy access
-            </p>
-          </div>
+        {/* Logout Button */}
+        <div className="pt-3">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 border-2 border-border bg-card text-foreground rounded-xl font-semibold text-sm hover:bg-destructive/10 hover:border-destructive/20 hover:text-destructive transition-all shadow-sm"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
         </div>
-
-        {/* Instructions */}
-        <div className="mt-6 bg-blue-900/30 border border-blue-600 rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-2 text-blue-200">Two ways to mark attendance:</h3>
-          <ol className="text-sm text-blue-200 space-y-2 list-decimal list-inside">
-            <li>
-              <strong>Self-Service:</strong> Use the scanner above to scan the form QR code displayed at the entrance
-            </li>
-            <li>
-              <strong>Admin Scan:</strong> Show your QR code (below) to the admin and they will scan it
-            </li>
-          </ol>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
