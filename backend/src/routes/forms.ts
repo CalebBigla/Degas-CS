@@ -17,8 +17,8 @@ router.put('/admin/forms/:id', authenticateCoreUser, requireCoreRole(['admin', '
 router.delete('/admin/forms/:id', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formController.deleteForm.bind(formController));
 
 // Form tables endpoints - lists forms as virtual tables
-router.get('/admin/forms-tables', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.getFormTables);
-router.get('/admin/forms-tables/:formId/users', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.getFormTableUsers);
+router.get('/admin/forms-tables', authenticateCoreUser, requireCoreRole(['admin', 'super_admin', 'follow_up']), formsTablesController.getFormTables);
+router.get('/admin/forms-tables/:formId/users', authenticateCoreUser, requireCoreRole(['admin', 'super_admin', 'follow_up']), formsTablesController.getFormTableUsers);
 router.delete('/admin/forms-tables/:formId/users/:userId', authenticateCoreUser, requireCoreRole(['admin', 'super_admin']), formsTablesController.deleteFormTableUser);
 
 export default router;
