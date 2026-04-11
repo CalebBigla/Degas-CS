@@ -283,27 +283,58 @@ export function RegisterPage() {
                       <span className="text-red-500 font-bold">*</span>
                       <span className="text-xs text-red-400">(Required)</span>
                     </div>
+                    
+                    {/* Hidden file inputs */}
                     <input
                       type="file"
                       accept="image/*"
-                      capture={field.field_type === 'camera' ? 'user' : undefined}
+                      capture="environment"
                       onChange={handlePhotoCapture}
                       className="hidden"
-                      id={field.field_name}
+                      id={`${field.field_name}-camera`}
                     />
-                    <label
-                      htmlFor={field.field_name}
-                      className={`flex items-center justify-center gap-2 w-full px-3 py-2 border rounded text-white cursor-pointer transition ${
-                        photo
-                          ? 'bg-green-700 border-green-600 hover:bg-green-600'
-                          : 'bg-gray-700 border-gray-600 hover:bg-gray-600'
-                      }`}
-                    >
-                      {field.field_type === 'camera' ? <Camera size={20} /> : <Upload size={20} />}
-                      {photo ? '✓ Photo Added' : field.placeholder || 'Upload Photo'}
-                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoCapture}
+                      className="hidden"
+                      id={`${field.field_name}-gallery`}
+                    />
+                    
+                    {/* Two button options */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <label
+                        htmlFor={`${field.field_name}-camera`}
+                        className={`flex flex-col items-center justify-center gap-2 px-3 py-4 border rounded text-white cursor-pointer transition ${
+                          photo
+                            ? 'bg-green-700 border-green-600 hover:bg-green-600'
+                            : 'bg-gray-700 border-gray-600 hover:bg-gray-600'
+                        }`}
+                      >
+                        <Camera size={24} />
+                        <span className="text-sm font-medium">Take Photo</span>
+                      </label>
+                      
+                      <label
+                        htmlFor={`${field.field_name}-gallery`}
+                        className={`flex flex-col items-center justify-center gap-2 px-3 py-4 border rounded text-white cursor-pointer transition ${
+                          photo
+                            ? 'bg-green-700 border-green-600 hover:bg-green-600'
+                            : 'bg-gray-700 border-gray-600 hover:bg-gray-600'
+                        }`}
+                      >
+                        <Upload size={24} />
+                        <span className="text-sm font-medium">Upload from Gallery</span>
+                      </label>
+                    </div>
+                    
                     {photo && (
-                      <img src={photo} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded border-2 border-green-500" />
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-green-400 text-sm font-medium">✓ Photo Added</span>
+                        </div>
+                        <img src={photo} alt="Preview" className="w-32 h-32 object-cover rounded border-2 border-green-500" />
+                      </div>
                     )}
                   </div>
                 ) : (
