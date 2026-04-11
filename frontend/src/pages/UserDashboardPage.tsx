@@ -437,42 +437,40 @@ export function UserDashboardPage() {
               <div className="flex items-start gap-4 sm:gap-5">
                 {/* Profile Image - Always show image from database or placeholder */}
                 <div className="shrink-0">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-border bg-muted">
-                    {userData?.profileImageUrl ? (
-                      <img 
-                        src={userData.profileImageUrl} 
-                        alt={userData.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">
-                          {getUserInitials()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* User Details */}
-                <div className="flex-1 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Name</p>
-                    <p className="text-sm sm:text-base font-semibold text-foreground truncate">{userData?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Email</p>
-                    <p className="text-sm sm:text-base font-medium text-foreground truncate">{userData?.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Phone</p>
-                    <p className="text-sm sm:text-base font-medium text-foreground">{userData?.phone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Status</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${userData?.scanned ? 'bg-success' : 'bg-warning'} animate-pulse`} />
-                      <p className={`text-sm sm:text-base font-bold ${userData?.scanned ? 'text-success' : 'text-warning'}`}>
+          {/* Single Row Layout */}
+          <div className="flex items-center justify-between">
+            {/* Left: Welcome Text */}
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
+              </h1>
+              <p className="text-white/70 text-xs font-medium mt-0.5">User Dashboard</p>
+            </div>
+
+            {/* Right: Icons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <Moon className="h-5 w-5 text-white" />
+                ) : (
+                  <Sun className="h-5 w-5 text-white" />
+                )}
+              </button>
+              
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Menu"
+              >
+                <Menu className="h-5 w-5 text-white" />
+              </button>
+            </div>
+          </div>
                         {userData?.scanned ? 'Scanned' : 'Not Scanned'}
                       </p>
                     </div>
