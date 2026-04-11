@@ -4,7 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { Phone, Mail, ScanLine, Info, Download, X, LogOut, Calendar, Home, MapPin, Clock, CheckCircle2, Menu, Moon, Sun } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import QRCode from 'qrcode';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -26,6 +27,9 @@ export function UserDashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [themeAnimate, setThemeAnimate] = useState(false);
+  const [menuClosing, setMenuClosing] = useState(false);
+  const [showCooldownModal, setShowCooldownModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -83,7 +87,22 @@ export function UserDashboardPage() {
       const storedUser = localStorage.getItem('degas_user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        setUserData(parsedUser);
+        let userDataWithProfile = { ...parsedUser };
+        
+        // Fetch user's actual profile image from database
+        if (parsedUser.userId || parsedUser.id) {
+          try {
+            const userId = parsedUser.userId || parsedUser.id;
+            const response = await api.get(`/users/${userId}`);
+            if (response.data?.data?.profileimageurl) {
+              userDataWithProfile.profileImageUrl = response.data.data.profileimageurl;
+            }
+          } catch (error) {
+            console.warn('Could not fetch profile image from database:', error);
+          }
+        }
+        
+        setUserData(userDataWithProfile);
         
         if (parsedUser.qrCode) {
           setQrCodeImage(parsedUser.qrCode);
@@ -138,38 +157,122 @@ export function UserDashboardPage() {
     navigate('/login');
   };
 
+  const checkScanCooldown = () => {
+    if (!userData?.scannedAt) return true; // No previous scan
+    
+    const lastScan = new Date(userData.scannedAt);
+    const now = new Date();
+    const hoursSinceLastScan = (now - lastScan) / (1000 * 60 * 60);
+    
+    return hoursSinceLastScan >= 24;
+  };
+
   const downloadIDCard = async () => {
     try {
-      const idCardElement = document.getElementById('id-card-export');
-      if (!idCardElement) {
-        toast.error('ID Card not found');
+      if (!userData?.name || !userData?.email) {
+        toast.error('User data incomplete');
         return;
       }
-      
-      toast.loading('Generating ID Card...');
-      
-      const canvas = await html2canvas(idCardElement, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        logging: false,
-        useCORS: true
+
+      toast.loading('Generating ID Card PDF...');
+
+      // Generate QR code as image
+      let qrCodeDataUrl = qrCodeImage;
+      if (!qrCodeDataUrl) {
+        // Generate QR code from user data if not available
+        const qrData = JSON.stringify({ userId: userData.userId || userData.id, name: userData.name });
+        qrCodeDataUrl = await QRCode.toDataURL(qrData);
+      }
+
+      // Create PDF (A6 ID card size: 105mm x 148mm landscape)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [105, 148]
       });
-      
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `ID_Card_${userData?.name || 'Member'}.png`;
-      link.click();
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Background color (dark)
+      pdf.setFillColor(26, 26, 26);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+      // Header background
+      pdf.setFillColor(15, 15, 15);
+      pdf.rect(0, 0, pageWidth, 15, 'F');
+
+      // Header text: "The Force of Grace Ministry"
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('The Force of Grace Ministry', pageWidth / 2, 8, { align: 'center' });
+
+      // TFG Badge in top right
+      pdf.setFillColor(100, 150, 255);
+      pdf.rect(pageWidth - 12, 2, 10, 10, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(6);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('TFG', pageWidth - 7, 8, { align: 'center' });
+
+      // Profile Image Area (circular, centered)
+      const profileImageX = pageWidth / 2;
+      const profileImageY = 28;
+      const profileImageSize = 25;
+
+      if (userData?.profileImageUrl) {
+        try {
+          pdf.addImage(userData.profileImageUrl, 'JPEG', profileImageX - profileImageSize / 2, profileImageY - profileImageSize / 2, profileImageSize, profileImageSize);
+        } catch (imgError) {
+          console.warn('Could not load profile image for PDF');
+        }
+      }
+
+      // User Name
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(userData.name, pageWidth / 2, 58, { align: 'center' });
+
+      // "Member" label
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(180, 180, 180);
+      pdf.text('MEMBER', pageWidth / 2, 65, { align: 'center' });
+
+      // QR Code
+      const qrSize = 30;
+      const qrX = (pageWidth - qrSize) / 2;
+      const qrY = 72;
+      if (qrCodeDataUrl) {
+        pdf.addImage(qrCodeDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+      }
+
+      // Footer
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('Scan to verify membership', pageWidth / 2, 110, { align: 'center' });
+
+      // Save
+      pdf.save(`ID_Card_${userData.name}.pdf`);
       
       toast.dismiss();
-      toast.success('ID Card downloaded successfully!');
+      toast.success('ID Card PDF downloaded!');
     } catch (error) {
-      console.error('Error downloading ID Card:', error);
+      console.error('Error generating ID Card PDF:', error);
       toast.dismiss();
-      toast.error('Failed to download ID Card');
+      toast.error('Failed to generate ID Card PDF');
     }
   };
 
   const startScanner = () => {
+    if (!checkScanCooldown()) {
+      setShowCooldownModal(true);
+      return;
+    }
+    
     setShowScanner(true);
     setScanning(true);
     setScanResult(null);
@@ -346,11 +449,13 @@ export function UserDashboardPage() {
             <div className="flex items-center gap-2">
 
               <button
+                onClick={() => {
+                  setThemeAnimate(true);
+                  setTimeout(() => setThemeAnimate(false), 500);
+                  toggleTheme();
+                }}
 
-                onClick={toggleTheme}
-
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-
+                className={`p-1.5 hover:bg-white/10 rounded-lg transition-colors ${themeAnimate ? 'theme-toggle-animate' : ''}`}
                 title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
 
                 aria-label="Toggle theme"
@@ -472,11 +577,26 @@ export function UserDashboardPage() {
                 <div className="shrink-0">
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-border bg-muted">
                     {userData?.profileImageUrl ? (
-                      <img 
-                        src={userData.profileImageUrl} 
-                        alt={userData.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <div key={`image-${userData.profileImageUrl}`} className="relative w-full h-full">
+                        <img 
+                          src={userData.profileImageUrl} 
+                          alt={userData.name}
+                          className="w-full h-full object-cover"
+                          onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                            // Gracefully fallback to initials if image fails to load
+                            const container = (e.target as HTMLImageElement).parentElement;
+                            if (container) {
+                              container.innerHTML = `
+                                <div class="w-full h-full flex items-center justify-center">
+                                  <span class="text-2xl sm:text-3xl font-bold text-muted-foreground">
+                                    ${getUserInitials()}
+                                  </span>
+                                </div>
+                              `;
+                            }
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">
@@ -591,7 +711,7 @@ export function UserDashboardPage() {
             <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
               <div className="mx-auto max-w-[400px]">
                 {/* ID Card */}
-                <div id="id-card-export" className="rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
+                <div className="rounded-2xl bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-primary-foreground))] overflow-hidden shadow-xl">
                   {/* Card Header */}
                   <div className="bg-[hsl(var(--sidebar-primary))]/20 px-4 py-3 flex items-center justify-between border-b border-[hsl(var(--sidebar-border))]">
                     <div className="flex items-center gap-2">
@@ -788,7 +908,44 @@ export function UserDashboardPage() {
             )}
           </div>
         )}
-      </div>
+  
+      {/* 24-Hour Cooldown Modal */}
+      {showCooldownModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card rounded-2xl p-6 sm:p-8 max-w-sm mx-4 shadow-2xl animate-scale-in border border-border">
+            <div className="text-center space-y-4">
+              {/* Icon */}
+              <div className="mx-auto w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center">
+                <Clock className="h-8 w-8 text-warning" />
+              </div>
+              
+              {/* Message */}
+              <div>
+                <h3 className="text-lg font-bold text-foreground mb-2">
+                  Scan Cooldown Active
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  You've already scanned today. Kindly wait for 24 hours before scanning again.
+                </p>
+                {userData?.scannedAt && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Last scan: {new Date(userData.scannedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              
+              {/* Button */}
+              <button
+                onClick={() => setShowCooldownModal(false)}
+                className="w-full px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-sm transition-colors"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }
