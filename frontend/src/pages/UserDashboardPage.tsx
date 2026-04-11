@@ -87,22 +87,7 @@ export function UserDashboardPage() {
       const storedUser = localStorage.getItem('degas_user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        let userDataWithProfile = { ...parsedUser };
-        
-        // Fetch user's actual profile image from database
-        if (parsedUser.userId || parsedUser.id) {
-          try {
-            const userId = parsedUser.userId || parsedUser.id;
-            const response = await api.get(`/users/${userId}`);
-            if (response.data?.data?.profileimageurl) {
-              userDataWithProfile.profileImageUrl = response.data.data.profileimageurl;
-            }
-          } catch (error) {
-            console.warn('Could not fetch profile image from database:', error);
-          }
-        }
-        
-        setUserData(userDataWithProfile);
+        setUserData(parsedUser);
         
         if (parsedUser.qrCode) {
           setQrCodeImage(parsedUser.qrCode);
@@ -167,28 +152,6 @@ export function UserDashboardPage() {
     return hoursSinceLastScan >= 24;
   };
 
-  const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
-    try {
-      const response = await fetch(imageUrl, {
-        mode: 'cors',
-        credentials: 'omit'
-      });
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.warn('Failed to convert image to base64:', error);
-      return null;
-    }
-  };
-
   const downloadIDCard = async () => {
     try {
       if (!userData?.name || !userData?.email) {
@@ -230,6 +193,14 @@ export function UserDashboardPage() {
       pdf.setTextColor(255, 255, 255);
       pdf.text('The Force of Grace Ministry', pageWidth / 2, 8, { align: 'center' });
 
+      // TFG Badge in top right
+      pdf.setFillColor(100, 150, 255);
+      pdf.rect(pageWidth - 12, 2, 10, 10, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(6);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('TFG', pageWidth - 7, 8, { align: 'center' });
+
       // Profile Image Area (circular, centered)
       const profileImageX = pageWidth / 2;
       const profileImageY = 28;
@@ -237,12 +208,9 @@ export function UserDashboardPage() {
 
       if (userData?.profileImageUrl) {
         try {
-          const base64Image = await convertImageToBase64(userData.profileImageUrl);
-          if (base64Image) {
-            pdf.addImage(base64Image, 'JPEG', profileImageX - profileImageSize / 2, profileImageY - profileImageSize / 2, profileImageSize, profileImageSize);
-          }
+          pdf.addImage(userData.profileImageUrl, 'JPEG', profileImageX - profileImageSize / 2, profileImageY - profileImageSize / 2, profileImageSize, profileImageSize);
         } catch (imgError) {
-          console.warn('Could not add profile image to PDF:', imgError);
+          console.warn('Could not load profile image for PDF');
         }
       }
 
