@@ -57,6 +57,7 @@ export function ScannerPage() {
 
   const startScanner = () => {
     setCameraError(null);
+    setIsProcessing(false);
     
     if (scannerRef.current) {
       scannerRef.current.clear().catch(() => {});
@@ -77,30 +78,54 @@ export function ScannerPage() {
       /* verbose= */ false
     );
 
+    console.log('🎬 Starting scanner with html5-qrcode library...');
+    
     scanner.render(
       async (decodedText) => {
-        console.log('QR Code detected:', decodedText);
+        console.log('✅ QR Code detected:', decodedText.substring(0, 50));
         setIsProcessing(true);
         await handleScanSuccess(decodedText);
         scanner.clear().catch(() => {});
         setIsScanning(false);
+        setIsProcessing(false);
       },
       (error) => {
         // Only log actual errors, not "no QR found" messages
         if (!error.includes('NotFoundException')) {
-          console.warn('Scanner error:', error);
+          console.warn('⚠️ Scanner error:', error);
         }
       }
-    ).catch((err) => {
-      console.error('Scanner initialization error:', err);
-      setCameraError('Failed to start camera. Please check permissions and try again.');
+    ).then(() => {
+      console.log('✅ Scanner rendered successfully');
+      setIsScanning(true);
+      setScanResult(null);
+      setShowResult(false);
+    }).catch((err) => {
+      console.error('❌ Scanner initialization error:', err);
+      console.error('Error details:', {
+        message: err?.message,
+        name: err?.name,
+        stack: err?.stack?.substring(0, 200)
+      });
+      
+      // Provide specific error messages
+      let errorMsg = 'Failed to start camera. Please check permissions and try again.';
+      if (err?.message?.includes('Requested device not found')) {
+        errorMsg = 'No camera device found. Please connect a camera and try again.';
+      } else if (err?.message?.includes('Permission denied')) {
+        errorMsg = 'Camera permission denied. Please allow camera access in your browser settings.';
+      } else if (err?.message?.includes('NotAllowedError')) {
+        errorMsg = 'Camera access not allowed. Please enable camera permissions and retry.';
+      } else if (err?.message?.includes('NotFoundError')) {
+        errorMsg = 'No camera device detected on your system.';
+      }
+      
+      setCameraError(errorMsg);
       setIsScanning(false);
+      setIsProcessing(false);
     });
 
     scannerRef.current = scanner;
-    setIsScanning(true);
-    setScanResult(null);
-    setShowResult(false);
   };
 
   const stopScanner = () => {
@@ -338,13 +363,22 @@ export function ScannerPage() {
                   </div>
 
                   {/* Scanner Area */}
-                  <div className="p-6">
+                  <div className="p-6 bg-white">
                     {cameraError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                        <p className="text-red-800 text-sm">{cameraError}</p>
-                        <p className="text-red-600 text-xs mt-2">
-                          Make sure you've granted camera permissions and are using HTTPS (or localhost).
-                        </p>
+                      <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="text-red-600 text-xl mt-1">⚠️</div>
+                          <div className="flex-1">
+                            <p className="text-red-900 font-semibold text-sm">Camera Access Failed</p>
+                            <p className="text-red-800 text-sm mt-1">{cameraError}</p>
+                            <p className="text-red-700 text-xs mt-2">
+                              • Make sure you granted camera permissions<br/>
+                              • Use HTTPS or localhost<br/>
+                              • Try refreshing the page and trying again<br/>
+                              • Check browser console (F12) for detailed errors
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
                     
@@ -358,7 +392,7 @@ export function ScannerPage() {
                     )}
                     
                     {!isProcessing && (
-                      <div id="qr-reader" className="w-full">
+                      <div id="qr-reader" className="w-full" style={{ minHeight: '400px' }}>
                         {!isScanning && !cameraError && (
                           <div className="text-center py-12">
                             <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
