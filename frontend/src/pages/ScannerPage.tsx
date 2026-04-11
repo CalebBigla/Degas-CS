@@ -86,8 +86,31 @@ export function ScannerPage() {
         scannerRef.current.clear();
       } catch (error) {
         console.warn('Cleanup error on existing scanner:', error);
+        // If clear() fails, force cleanup by removing the scanner reference
+        // and clearing the qr-reader div manually
+        scannerRef.current = null;
+        const qrReaderDiv = document.getElementById('qr-reader');
+        if (qrReaderDiv) {
+          // Clear all child elements safely
+          while (qrReaderDiv.firstChild) {
+            qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+          }
+        }
       }
       scannerRef.current = null;
+    }
+    
+    // Ensure qr-reader div is clean and ready
+    const qrReaderDiv = document.getElementById('qr-reader');
+    if (!qrReaderDiv) {
+      console.error('qr-reader div not found!');
+      setCameraError('Scanner container not found. Please refresh the page.');
+      return;
+    }
+    
+    // Clear any existing content in qr-reader div
+    while (qrReaderDiv.firstChild) {
+      qrReaderDiv.removeChild(qrReaderDiv.firstChild);
     }
 
     const scanner = new Html5QrcodeScanner(
@@ -193,7 +216,13 @@ export function ScannerPage() {
           scannerRef.current.clear();
         } catch (clearError) {
           console.warn('⚠️ Error during scanner.clear():', clearError);
-          // Continue with null assignment even if clear fails
+          // If clear fails, manually clean up the DOM
+          const qrReaderDiv = document.getElementById('qr-reader');
+          if (qrReaderDiv) {
+            while (qrReaderDiv.firstChild) {
+              qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+            }
+          }
         }
         
         // Force remove scanner reference
@@ -201,6 +230,17 @@ export function ScannerPage() {
       } catch (error) {
         console.error('Error in stopScanner:', error);
         scannerRef.current = null;
+        // Last resort: clear the div manually
+        try {
+          const qrReaderDiv = document.getElementById('qr-reader');
+          if (qrReaderDiv) {
+            while (qrReaderDiv.firstChild) {
+              qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+            }
+          }
+        } catch (domError) {
+          console.error('Failed to clean DOM:', domError);
+        }
       }
     }
     safeSetState(setIsScanning, false);
