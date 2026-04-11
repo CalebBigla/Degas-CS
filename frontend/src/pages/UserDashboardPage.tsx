@@ -208,14 +208,6 @@ export function UserDashboardPage() {
       pdf.setTextColor(255, 255, 255);
       pdf.text('The Force of Grace Ministry', pageWidth / 2, 8, { align: 'center' });
 
-      // TFG Badge in top right
-      pdf.setFillColor(100, 150, 255);
-      pdf.rect(pageWidth - 12, 2, 10, 10, 'F');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(6);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('TFG', pageWidth - 7, 8, { align: 'center' });
-
       // Profile Image Area (circular, centered)
       const profileImageX = pageWidth / 2;
       const profileImageY = 28;
