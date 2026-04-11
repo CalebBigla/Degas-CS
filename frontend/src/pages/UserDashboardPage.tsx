@@ -91,9 +91,12 @@ export function UserDashboardPage() {
         
         // Fetch user's actual profile image from database
         try {
-          const response = await api.get('/form/me');
-          if (response.data?.data?.profileimageurl) {
-            userDataWithProfile.profileImageUrl = response.data.data.profileimageurl;
+          const userId = parsedUser.userId || parsedUser.id;
+          if (userId) {
+            const response = await api.get(`/form/me?userId=${userId}`);
+            if (response.data?.data?.profileimageurl) {
+              userDataWithProfile.profileImageUrl = response.data.data.profileimageurl;
+            }
           }
         } catch (error) {
           console.warn('Could not fetch profile image from database:', error);

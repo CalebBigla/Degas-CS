@@ -831,18 +831,18 @@ class FixedUserController {
 
   /**
    * Get current user's profile
-   * GET /api/form/me
-   * Requires authentication
+   * GET /api/form/me?userId=<userId>
+   * No auth required - validates via userId from localStorage
    */
   async getMe(req: any, res: Response) {
     try {
-      // req.user.userId should be set by auth middleware
-      const userId = req.user?.userId;
+      // Get userId from query parameter
+      const userId = req.query.userId as string;
       
       if (!userId) {
-        return res.status(401).json({
+        return res.status(400).json({
           success: false,
-          message: 'User not authenticated'
+          message: 'userId is required'
         });
       }
 
