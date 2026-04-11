@@ -330,9 +330,10 @@ export function ScannerPage() {
     if (!isMountedRef.current) return;
 
     try {
-      console.log('Sending QR verification request:', { qrData: qrData.substring(0, 50) + '...', selectedTableId });
+      console.log('Sending QR scan request to greeter endpoint:', { qrData: qrData.substring(0, 50) + '...', selectedTableId });
       
-      const response = await api.post('/scanner/verify', { 
+      // Use the /form/scan endpoint for greeter role (not /scanner/verify which is admin-only)
+      const response = await api.post('/form/scan', { 
         qrData,
         selectedTableId: selectedTableId || undefined
       });
