@@ -6,6 +6,29 @@ services:
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
     routes:
+      # Serve static assets without rewriting
+      - type: route
+        source: /assets/*
+        destination: /assets/*
+      - type: route
+        source: /*.js
+        destination: /*.js
+      - type: route
+        source: /*.css
+        destination: /*.css
+      - type: route
+        source: /*.json
+        destination: /*.json
+      - type: route
+        source: /*.svg
+        destination: /*.svg
+      - type: route
+        source: /*.png
+        destination: /*.png
+      - type: route
+        source: /*.ico
+        destination: /*.ico
+      # All other routes: rewrite to index.html for SPA routing
       - type: rewrite
         source: /*
         destination: /index.html

@@ -50,6 +50,16 @@ export function ScannerPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
+  // Ensure qr-reader div is always mounted and ready
+  useEffect(() => {
+    const qrReaderDiv = document.getElementById('qr-reader');
+    if (!qrReaderDiv) {
+      console.warn('⚠️ qr-reader div not found in DOM - scanner may fail');
+    } else {
+      console.log('✅ qr-reader div is available in DOM');
+    }
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -391,16 +401,22 @@ export function ScannerPage() {
                       </div>
                     )}
                     
-                    {!isProcessing && (
-                      <div id="qr-reader" className="w-full" style={{ minHeight: '400px' }}>
-                        {!isScanning && !cameraError && (
-                          <div className="text-center py-12">
-                            <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-600">Click "Start Scanner" to begin</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {/* QR Reader - ALWAYS MOUNT IN DOM, just hide with CSS if needed */}
+                    <div 
+                      id="qr-reader" 
+                      className="w-full" 
+                      style={{ 
+                        minHeight: '400px',
+                        display: isProcessing ? 'none' : 'block'
+                      }}
+                    >
+                      {!isScanning && !cameraError && (
+                        <div className="text-center py-12">
+                          <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600">Click "Start Scanner" to begin</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
