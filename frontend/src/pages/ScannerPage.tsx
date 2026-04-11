@@ -41,6 +41,7 @@ export function ScannerPage() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const isMountedRef = useRef(true); // Track component mount status
   const [showResult, setShowResult] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [useSimplifiedScanner, setUseSimplifiedScanner] = useState(false);
@@ -49,6 +50,13 @@ export function ScannerPage() {
   const [loadingTables, setLoadingTables] = useState(false);
   const navigate = useNavigate();
   const { logout } = useAuth();
+
+  // Safe state update wrapper - prevents updates after unmount
+  const safeSetState = (setter: any, value: any) => {
+    if (isMountedRef.current) {
+      setter(value);
+    }
+  };
 
   // Ensure qr-reader div is always mounted and ready
   useEffect(() => {
@@ -66,11 +74,20 @@ export function ScannerPage() {
   };
 
   const startScanner = () => {
-    setCameraError(null);
-    setIsProcessing(false);
+    // Verify component is still mounted
+    if (!isMountedRef.current) return;
+
+    if (cameraError) setCameraError(null);
+    if (isProcessing) setIsProcessing(false);
     
+    // Clean up any existing scanner instance
     if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => {});
+      try {
+        scannerRef.current.clear();
+      } catch (error) {
+        console.warn('Cleanup error on existing scanner:', error);
+      }
+      scannerRef.current = null;
     }
 
     const scanner = new Html5QrcodeScanner(
@@ -94,12 +111,32 @@ export function ScannerPage() {
       // scanner.render() does NOT return a promise, it renders immediately
       scanner.render(
         async (decodedText) => {
+          // Only process if component is still mounted
+          if (!isMountedRef.current) {
+            console.log('Component unmounted, ignoring scan result');
+            return;
+          }
+
           console.log('✅ QR Code detected:', decodedText.substring(0, 50));
-          setIsProcessing(true);
-          await handleScanSuccess(decodedText);
-          scanner.clear().catch(() => {});
-          setIsScanning(false);
-          setIsProcessing(false);
+          safeSetState(setIsProcessing, true);
+          
+          try {
+            await handleScanSuccess(decodedText);
+          } catch (error) {
+            console.error('Error handling scan success:', error);
+          } finally {
+            // Stop scanner and cleanup
+            if (scannerRef.current && isMountedRef.current) {
+              try {
+                scannerRef.current.clear();
+              } catch (error) {
+                console.warn('Error clearing scanner after scan:', error);
+              }
+              scannerRef.current = null;
+              safeSetState(setIsScanning, false);
+              safeSetState(setIsProcessing, false);
+            }
+          }
         },
         (error) => {
           // Only log actual errors, not "no QR found" messages
@@ -110,9 +147,9 @@ export function ScannerPage() {
       );
       
       console.log('✅ Scanner rendered successfully');
-      setIsScanning(true);
-      setScanResult(null);
-      setShowResult(false);
+      safeSetState(setIsScanning, true);
+      safeSetState(setScanResult, null);
+      safeSetState(setShowResult, false);
       
     } catch (err: any) {
       console.error('❌ Scanner initialization error:', err);
@@ -134,9 +171,9 @@ export function ScannerPage() {
         errorMsg = 'No camera device detected on your system.';
       }
       
-      setCameraError(errorMsg);
-      setIsScanning(false);
-      setIsProcessing(false);
+      safeSetState(setCameraError, errorMsg);
+      safeSetState(setIsScanning, false);
+      safeSetState(setIsProcessing, false);
     }
 
     scannerRef.current = scanner;
@@ -145,18 +182,18 @@ export function ScannerPage() {
   const stopScanner = () => {
     if (scannerRef.current) {
       try {
-        scannerRef.current.clear().catch(() => {
-          // Ignore cleanup errors
-        });
+        scannerRef.current.clear();
       } catch (error) {
-        // Ignore cleanup errors
+        console.warn('Error during scanner cleanup:', error);
       }
       scannerRef.current = null;
     }
-    setIsScanning(false);
+    safeSetState(setIsScanning, false);
   };
 
   const handleScanSuccess = async (qrData: string) => {
+    if (!isMountedRef.current) return;
+
     try {
       console.log('Sending QR verification request:', { qrData: qrData.substring(0, 50) + '...', selectedTableId });
       
@@ -174,13 +211,15 @@ export function ScannerPage() {
       
       const result = response.data.data || response.data;
       
-      setScanResult(result);
-      setShowResult(true);
+      safeSetState(setScanResult, result);
+      safeSetState(setShowResult, true);
       
       // Auto-hide result after 5 seconds
       setTimeout(() => {
-        setShowResult(false);
-        setScanResult(null);
+        if (isMountedRef.current) {
+          safeSetState(setShowResult, false);
+          safeSetState(setScanResult, null);
+        }
       }, 5000);
       
     } catch (error: any) {
@@ -202,57 +241,65 @@ export function ScannerPage() {
         errorMessage = error.message;
       }
       
-      setScanResult({
+      safeSetState(setScanResult, {
         success: false,
         message: errorMessage,
         accessGranted: false
       });
-      setShowResult(true);
+      safeSetState(setShowResult, true);
       
       setTimeout(() => {
-        setShowResult(false);
-        setScanResult(null);
+        if (isMountedRef.current) {
+          safeSetState(setShowResult, false);
+          safeSetState(setScanResult, null);
+        }
       }, 5000);
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const resetScanner = () => {
-    setShowResult(false);
-    setScanResult(null);
+    safeSetState(setShowResult, false);
+    safeSetState(setScanResult, null);
     if (!isScanning) {
       startScanner();
     }
   };
 
   useEffect(() => {
+    // Mark component as mounted
+    isMountedRef.current = true;
+
     // Fetch available tables for the selector
     const fetchTables = async () => {
       try {
-        setLoadingTables(true);
         const response = await api.get('/scanner/tables');
-        if (response.data.success) {
-          setTables(response.data.data || []);
+        if (isMountedRef.current && response.data.success) {
+          safeSetState(setTables, response.data.data || []);
         }
       } catch (error) {
         console.error('Failed to fetch tables:', error);
-      } finally {
-        setLoadingTables(false);
       }
     };
 
-    fetchTables();
+    safeSetState(setLoadingTables, true);
+    fetchTables().finally(() => {
+      if (isMountedRef.current) {
+        safeSetState(setLoadingTables, false);
+      }
+    });
 
+    // Cleanup on unmount
     return () => {
+      isMountedRef.current = false;
+      
+      // Clear scanner if it exists
       if (scannerRef.current) {
         try {
-          scannerRef.current.clear().catch(() => {
-            // Ignore cleanup errors
-          });
+          scannerRef.current.clear();
         } catch (error) {
-          // Ignore cleanup errors
+          console.warn('Error clearing scanner on unmount:', error);
         }
+        scannerRef.current = null;
       }
     };
   }, []);
@@ -325,8 +372,8 @@ export function ScannerPage() {
                 <button
                   onClick={() => {
                     stopScanner();
-                    setUseSimplifiedScanner(!useSimplifiedScanner);
-                    setCameraError(null);
+                    safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
+                    safeSetState(setCameraError, null);
                   }}
                   className="flex items-center space-x-2 text-sm text-navy-600 hover:text-navy-700 font-medium"
                 >
