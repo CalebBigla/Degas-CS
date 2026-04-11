@@ -49,7 +49,13 @@ export function ScannerPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, admin, user, userRole } = useAuth();
+
+  // Determine which scanner endpoint to use based on user role
+  const isAdminUser = admin !== null || userRole === 'admin' || userRole === 'super_admin';
+  const scannerEndpoint = isAdminUser ? '/scanner/verify' : '/form/scan';
+  
+  console.log('🎯 [SCANNER] User role detected:', { userRole, isAdminUser, endpoint: scannerEndpoint });
 
   // Safe state update wrapper - prevents updates after unmount
   const safeSetState = (setter: any, value: any) => {
@@ -330,13 +336,21 @@ export function ScannerPage() {
     if (!isMountedRef.current) return;
 
     try {
-      console.log('Sending QR scan request to greeter endpoint:', { qrData: qrData.substring(0, 50) + '...', selectedTableId });
-      
-      // Use the /form/scan endpoint for greeter role (not /scanner/verify which is admin-only)
-      const response = await api.post('/form/scan', { 
-        qrData,
-        selectedTableId: selectedTableId || undefined
+      console.log('Sending QR scan request:', { 
+        endpoint: scannerEndpoint, 
+        userRole, 
+        qrData: qrData.substring(0, 50) + '...',
+        selectedTableId 
       });
+      
+      // Use role-specific endpoint
+      let requestBody: any = { qrData };
+      if (isAdminUser) {
+        // Admin endpoint needs selectedTableId
+        requestBody.selectedTableId = selectedTableId || undefined;
+      }
+      
+      const response = await api.post(scannerEndpoint, requestBody);
       
       console.log('Received response:', response.data);
       
@@ -405,8 +419,14 @@ export function ScannerPage() {
     // Mark component as mounted
     isMountedRef.current = true;
 
-    // Fetch available tables for the selector
+    // Fetch available tables for the selector (admin only)
     const fetchTables = async () => {
+      // Only fetch tables for admin users
+      if (!isAdminUser) {
+        safeSetState(setLoadingTables, false);
+        return;
+      }
+
       try {
         const response = await api.get('/scanner/tables');
         if (isMountedRef.current && response.data.success) {
@@ -490,42 +510,44 @@ export function ScannerPage() {
         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
           {!showResult ? (
             <>
-              {/* Table Selector */}
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b-2 border-blue-300">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-blue-900">
-                    📋 Select Table for Scanning
-                  </label>
-                  {selectedTableId && (
-                    <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
-                      Filtering by table
-                    </span>
-                  )}
-                </div>
-                {loadingTables ? (
-                  <p className="text-sm text-gray-600">Loading tables...</p>
-                ) : (
-                  <div className="space-y-2">
-                    <select
-                      value={selectedTableId}
-                      onChange={(e) => setSelectedTableId(e.target.value)}
-                      className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
-                    >
-                      <option value="">🔍 All Tables (Search Across All)</option>
-                      {tables.map((table) => (
-                        <option key={table.id} value={table.id}>
-                          📊 {table.name}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedTableId && tables.length > 0 && (
-                      <p className="text-xs text-blue-700 italic">
-                        Showing: {tables.find(t => t.id === selectedTableId)?.name || 'Selected table'}
-                      </p>
+              {/* Table Selector - Admin Only */}
+              {isAdminUser && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b-2 border-blue-300">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-semibold text-blue-900">
+                      📋 Select Table for Scanning
+                    </label>
+                    {selectedTableId && (
+                      <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+                        Filtering by table
+                      </span>
                     )}
                   </div>
-                )}
-              </div>
+                  {loadingTables ? (
+                    <p className="text-sm text-gray-600">Loading tables...</p>
+                  ) : (
+                    <div className="space-y-2">
+                      <select
+                        value={selectedTableId}
+                        onChange={(e) => setSelectedTableId(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                      >
+                        <option value="">🔍 All Tables (Search Across All)</option>
+                        {tables.map((table) => (
+                          <option key={table.id} value={table.id}>
+                            📊 {table.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedTableId && tables.length > 0 && (
+                        <p className="text-xs text-blue-700 italic">
+                          Showing: {tables.find(t => t.id === selectedTableId)?.name || 'Selected table'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Scanner Mode Toggle */}
               <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
