@@ -117,24 +117,28 @@ export function ScannerPage() {
             return;
           }
 
-          console.log('✅ QR Code detected:', decodedText.substring(0, 50));
-          safeSetState(setIsProcessing, true);
-          
           try {
+            console.log('✅ QR Code detected:', decodedText.substring(0, 50));
+            safeSetState(setIsProcessing, true);
+            
             await handleScanSuccess(decodedText);
           } catch (error) {
             console.error('Error handling scan success:', error);
           } finally {
-            // Stop scanner and cleanup
-            if (scannerRef.current && isMountedRef.current) {
-              try {
-                scannerRef.current.clear();
-              } catch (error) {
-                console.warn('Error clearing scanner after scan:', error);
+            // Stop scanner and cleanup - wrap in try-catch for library safety
+            try {
+              if (scannerRef.current && isMountedRef.current) {
+                try {
+                  scannerRef.current.clear();
+                } catch (error) {
+                  console.warn('Error clearing scanner after scan:', error);
+                }
+                scannerRef.current = null;
+                safeSetState(setIsScanning, false);
+                safeSetState(setIsProcessing, false);
               }
-              scannerRef.current = null;
-              safeSetState(setIsScanning, false);
-              safeSetState(setIsProcessing, false);
+            } catch (cleanupError) {
+              console.warn('Cleanup failed gracefully:', cleanupError);
             }
           }
         },
@@ -169,6 +173,8 @@ export function ScannerPage() {
         errorMsg = 'Camera access not allowed. Please enable camera permissions and retry.';
       } else if (err?.message?.includes('NotFoundError')) {
         errorMsg = 'No camera device detected on your system.';
+      } else if (err?.message?.includes('removeChild')) {
+        errorMsg = 'Scanner internal error. Refresh the page and try again.';
       }
       
       safeSetState(setCameraError, errorMsg);
@@ -452,13 +458,13 @@ export function ScannerPage() {
                       </div>
                     )}
                     
-                    {/* QR Reader - ALWAYS MOUNT IN DOM, just hide with CSS if needed */}
+                    {/* QR Reader - ALWAYS MOUNT AND VISIBLE IN DOM */}
+                    {/* Do not hide with display:none - html5-qrcode needs div to stay visible for cleanup */}
                     <div 
                       id="qr-reader" 
                       className="w-full" 
                       style={{ 
-                        minHeight: '400px',
-                        display: isProcessing ? 'none' : 'block'
+                        minHeight: '400px'
                       }}
                     >
                       {!isScanning && !cameraError && (
