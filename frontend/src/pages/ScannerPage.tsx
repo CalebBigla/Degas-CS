@@ -429,16 +429,25 @@ export function ScannerPage() {
                   {useSimplifiedScanner ? 'Using: Direct Camera Access' : 'Using: Auto Scanner'}
                 </span>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     // Stop scanner first
                     stopScanner();
-                    // Give html5-qrcode time to cleanup
-                    setTimeout(() => {
-                      if (isMountedRef.current) {
-                        safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
-                        safeSetState(setCameraError, null);
+                    
+                    // Clear the qr-reader div manually to prevent conflicts
+                    const qrReaderDiv = document.getElementById('qr-reader');
+                    if (qrReaderDiv) {
+                      while (qrReaderDiv.firstChild) {
+                        qrReaderDiv.removeChild(qrReaderDiv.firstChild);
                       }
-                    }, 100);
+                    }
+                    
+                    // Give html5-qrcode more time to cleanup (increased from 100ms to 300ms)
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    if (isMountedRef.current) {
+                      safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
+                      safeSetState(setCameraError, null);
+                    }
                   }}
                   className="flex items-center space-x-2 text-sm text-navy-600 hover:text-navy-700 font-medium"
                 >
