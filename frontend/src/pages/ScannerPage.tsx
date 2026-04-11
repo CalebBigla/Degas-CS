@@ -665,7 +665,7 @@ export function ScannerPage() {
                 )}
                 
                 <h2 className="text-2xl font-bold mb-4">
-                  {scanResult?.success ? 'ACCESS GRANTED' : 'ACCESS DENIED'}
+                  {scanResult?.success ? 'PRESENT' : 'NOT RECOGNIZED'}
                 </h2>
 
                 {scanResult?.user && (
@@ -675,7 +675,7 @@ export function ScannerPage() {
                       {scanResult.user.photoUrl ? (
                         <img
                           src={scanResult.user.photoUrl}
-                          alt={scanResult.user.fullName || 'User'}
+                          alt={scanResult.user.name || 'User'}
                           className="w-24 h-24 rounded-full object-cover border-4 border-emerald shadow-lg"
                         />
                       ) : (
@@ -687,7 +687,7 @@ export function ScannerPage() {
 
                     {/* User Name */}
                     <h3 className="text-xl font-semibold text-charcoal mb-3 text-center">
-                      {scanResult.user.fullName || scanResult.user.name || 'User'}
+                      {scanResult.user.name || scanResult.user.fullName || 'User'}
                     </h3>
 
                     {/* Table Info */}
@@ -695,35 +695,6 @@ export function ScannerPage() {
                       <div className="text-center mb-4 pb-4 border-b-2 border-gray-300">
                         <p className="text-xs text-gray-600 font-medium">From Table:</p>
                         <p className="text-sm font-semibold text-blue-700">{scanResult.tableInfo.name}</p>
-                      </div>
-                    )}
-
-                    {/* Dynamic Fields from Schema */}
-                    {scanResult.schema && scanResult.schema.length > 0 && scanResult.fieldValues ? (
-                      <div className="space-y-2">
-                        {scanResult.schema.map((field) => {
-                          const value = scanResult.fieldValues?.[field.name];
-                          // Only show fields that have values
-                          if (value === null || value === undefined || value === '') {
-                            return null;
-                          }
-                          return (
-                            <div key={field.id} className="flex justify-between text-sm py-1">
-                              <span className="font-medium text-gray-700 capitalize">{field.name}:</span>
-                              <span className="text-gray-600">{String(value)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      // Fallback to old format for backwards compatibility
-                      <div className="space-y-2">
-                        {scanResult.user.role && (
-                          <div className="flex justify-between text-sm py-1">
-                            <span className="font-medium text-gray-700">Role:</span>
-                            <span className="text-gray-600 capitalize">{scanResult.user.role}</span>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
