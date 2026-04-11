@@ -184,17 +184,40 @@ export function UserDashboardPage() {
         return;
       }
 
+      // Wait for all images to load before capturing
+      const images = idCardElement.querySelectorAll('img');
+      const imageLoadPromises = Array.from(images).map((img: HTMLImageElement) => {
+        if (img.complete) {
+          return Promise.resolve();
+        }
+        return new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          // Timeout after 5 seconds
+          setTimeout(() => resolve(), 5000);
+        });
+      });
+
+      await Promise.all(imageLoadPromises);
+
+      // Small delay to ensure layout is stable
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Dynamically import html2canvas to ensure it loads properly
       const html2canvasModule = await import('html2canvas');
       const html2canvasFunc = html2canvasModule.default;
 
-      // Capture the ID card as an image using html2canvas
+      // Capture the ID card as an image using html2canvas with proper options
       const canvas = await html2canvasFunc(idCardElement, {
-        scale: 3, // Higher quality
-        backgroundColor: '#ffffff',
-        logging: false,
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        scrollY: 0,
+        scrollX: 0,
+        scale: 2,
+        height: idCardElement.scrollHeight,
+        windowHeight: idCardElement.scrollHeight,
+        backgroundColor: '#ffffff',
+        logging: false
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -209,8 +232,9 @@ export function UserDashboardPage() {
       // Add the captured image to PDF (portrait)
       pdf.addImage(imgData, 'PNG', 0, 0, 55, 91);
 
-      // Save the PDF
-      pdf.save(`ID_Card_${userData.name.replace(/\s+/g, '_')}.pdf`);
+      // Save the PDF with proper filename
+      const filename = `${userData.name.replace(/\s+/g, '-')}-id-card.pdf`;
+      pdf.save(filename);
 
       toast.dismiss();
       toast.success('ID Card PDF downloaded!');
