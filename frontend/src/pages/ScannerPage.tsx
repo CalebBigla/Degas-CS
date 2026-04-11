@@ -84,33 +84,37 @@ export function ScannerPage() {
     if (scannerRef.current) {
       try {
         scannerRef.current.clear();
+        console.log('✅ Existing scanner cleared before restart');
       } catch (error) {
-        console.warn('Cleanup error on existing scanner:', error);
-        // If clear() fails, force cleanup by removing the scanner reference
-        // and clearing the qr-reader div manually
+        // Silently swallow cleanup errors
+        console.warn('⚠️ Cleanup error on existing scanner (ignored):', error);
+      } finally {
         scannerRef.current = null;
-        const qrReaderDiv = document.getElementById('qr-reader');
-        if (qrReaderDiv) {
-          // Clear all child elements safely
-          while (qrReaderDiv.firstChild) {
-            qrReaderDiv.removeChild(qrReaderDiv.firstChild);
-          }
-        }
       }
-      scannerRef.current = null;
     }
     
     // Ensure qr-reader div is clean and ready
     const qrReaderDiv = document.getElementById('qr-reader');
     if (!qrReaderDiv) {
-      console.error('qr-reader div not found!');
+      console.error('❌ qr-reader div not found!');
       setCameraError('Scanner container not found. Please refresh the page.');
       return;
     }
     
-    // Clear any existing content in qr-reader div
-    while (qrReaderDiv.firstChild) {
-      qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+    // Clear any existing content in qr-reader div - wrap in try-catch
+    try {
+      while (qrReaderDiv.firstChild) {
+        try {
+          qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+        } catch (removeErr) {
+          // Silently ignore individual removeChild errors
+          console.warn('⚠️ DOM removeChild error (ignored):', removeErr);
+        }
+      }
+      console.log('✅ qr-reader div cleaned');
+    } catch (cleanupErr) {
+      // Silently swallow all DOM cleanup errors
+      console.warn('⚠️ DOM cleanup error (ignored):', cleanupErr);
     }
 
     const scanner = new Html5QrcodeScanner(
@@ -153,15 +157,19 @@ export function ScannerPage() {
               if (scannerRef.current && isMountedRef.current) {
                 try {
                   scannerRef.current.clear();
+                  console.log('✅ Scanner cleared after successful scan');
                 } catch (error) {
-                  console.warn('Error clearing scanner after scan:', error);
+                  // Silently swallow cleanup errors
+                  console.warn('⚠️ Error clearing scanner after scan (ignored):', error);
+                } finally {
+                  scannerRef.current = null;
+                  safeSetState(setIsScanning, false);
+                  safeSetState(setIsProcessing, false);
                 }
-                scannerRef.current = null;
-                safeSetState(setIsScanning, false);
-                safeSetState(setIsProcessing, false);
               }
             } catch (cleanupError) {
-              console.warn('Cleanup failed gracefully:', cleanupError);
+              // Silently swallow all cleanup errors to prevent crashes
+              console.warn('⚠️ Cleanup failed (ignored):', cleanupError);
             }
           }
         },
@@ -211,36 +219,34 @@ export function ScannerPage() {
   const stopScanner = () => {
     if (scannerRef.current) {
       try {
-        // First try to clear - this is the main html5-qrcode cleanup
-        try {
-          scannerRef.current.clear();
-        } catch (clearError) {
-          console.warn('⚠️ Error during scanner.clear():', clearError);
-          // If clear fails, manually clean up the DOM
-          const qrReaderDiv = document.getElementById('qr-reader');
-          if (qrReaderDiv) {
-            while (qrReaderDiv.firstChild) {
+        // Html5QrcodeScanner only has .clear() method
+        scannerRef.current.clear();
+        console.log('✅ Scanner stopped and cleared');
+      } catch (clearError) {
+        // Silently swallow cleanup errors to prevent app crashes
+        console.warn('⚠️ Error during scanner.clear() (ignored):', clearError);
+      } finally {
+        // Always remove scanner reference
+        scannerRef.current = null;
+      }
+      
+      // Fallback DOM cleanup - wrap in try-catch
+      try {
+        const qrReaderDiv = document.getElementById('qr-reader');
+        if (qrReaderDiv && qrReaderDiv.firstChild) {
+          while (qrReaderDiv.firstChild) {
+            try {
               qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+            } catch (removeErr) {
+              // Silently ignore individual removeChild errors
+              console.warn('⚠️ DOM removeChild error (ignored):', removeErr);
             }
           }
+          console.log('✅ Fallback DOM cleanup completed');
         }
-        
-        // Force remove scanner reference
-        scannerRef.current = null;
-      } catch (error) {
-        console.error('Error in stopScanner:', error);
-        scannerRef.current = null;
-        // Last resort: clear the div manually
-        try {
-          const qrReaderDiv = document.getElementById('qr-reader');
-          if (qrReaderDiv) {
-            while (qrReaderDiv.firstChild) {
-              qrReaderDiv.removeChild(qrReaderDiv.firstChild);
-            }
-          }
-        } catch (domError) {
-          console.error('Failed to clean DOM:', domError);
-        }
+      } catch (domError) {
+        // Silently swallow all DOM errors
+        console.warn('⚠️ Failed to clean DOM (ignored):', domError);
       }
     }
     safeSetState(setIsScanning, false);
@@ -343,22 +349,43 @@ export function ScannerPage() {
       }
     });
 
-    // Cleanup on unmount or mode switch
+    // Cleanup on unmount - properly stop scanner and prevent DOM conflicts
     return () => {
+      console.log('🧹 Component unmounting - cleaning up scanner...');
       isMountedRef.current = false;
       
-      // First, call stopScanner to ensure proper cleanup sequence
-      try {
-        if (scannerRef.current) {
-          try {
-            scannerRef.current.clear();
-          } catch (clearErr) {
-            console.warn('Cleanup: Error during clear():', clearErr);
-          }
+      // Stop and clear the scanner before unmount
+      if (scannerRef.current) {
+        try {
+          // Html5QrcodeScanner only has .clear() method (no .stop() method)
+          scannerRef.current.clear();
+          console.log('✅ Scanner cleared successfully');
+        } catch (clearErr) {
+          // Silently swallow cleanup errors to prevent app crashes
+          console.warn('⚠️ Cleanup: Error during clear() (ignored):', clearErr);
+        } finally {
           scannerRef.current = null;
         }
+      }
+      
+      // Additional DOM cleanup as fallback
+      try {
+        const qrReaderDiv = document.getElementById('qr-reader');
+        if (qrReaderDiv && qrReaderDiv.firstChild) {
+          // Clear all child elements to prevent removeChild conflicts
+          while (qrReaderDiv.firstChild) {
+            try {
+              qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+            } catch (domErr) {
+              // Silently ignore DOM removal errors
+              console.warn('⚠️ DOM cleanup error (ignored):', domErr);
+            }
+          }
+          console.log('✅ DOM cleaned up successfully');
+        }
       } catch (error) {
-        console.error('Cleanup: Unexpected error:', error);
+        // Silently swallow all cleanup errors
+        console.warn('⚠️ Cleanup: Unexpected error (ignored):', error);
       }
     };
   }, []);
@@ -430,23 +457,45 @@ export function ScannerPage() {
                 </span>
                 <button
                   onClick={async () => {
-                    // Stop scanner first
-                    stopScanner();
-                    
-                    // Clear the qr-reader div manually to prevent conflicts
-                    const qrReaderDiv = document.getElementById('qr-reader');
-                    if (qrReaderDiv) {
-                      while (qrReaderDiv.firstChild) {
-                        qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+                    // Stop scanner first with proper error handling
+                    if (scannerRef.current) {
+                      try {
+                        scannerRef.current.clear();
+                        console.log('✅ Scanner cleared before mode switch');
+                      } catch (err) {
+                        // Silently swallow cleanup errors
+                        console.warn('⚠️ Error clearing scanner before mode switch (ignored):', err);
+                      } finally {
+                        scannerRef.current = null;
                       }
                     }
                     
-                    // Give html5-qrcode more time to cleanup (increased from 100ms to 300ms)
+                    // Clear the qr-reader div manually to prevent conflicts
+                    try {
+                      const qrReaderDiv = document.getElementById('qr-reader');
+                      if (qrReaderDiv && qrReaderDiv.firstChild) {
+                        while (qrReaderDiv.firstChild) {
+                          try {
+                            qrReaderDiv.removeChild(qrReaderDiv.firstChild);
+                          } catch (removeErr) {
+                            // Silently ignore removeChild errors
+                            console.warn('⚠️ DOM removeChild error (ignored):', removeErr);
+                          }
+                        }
+                        console.log('✅ DOM cleaned before mode switch');
+                      }
+                    } catch (domErr) {
+                      // Silently swallow DOM errors
+                      console.warn('⚠️ DOM cleanup error (ignored):', domErr);
+                    }
+                    
+                    // Give html5-qrcode time to fully cleanup (300ms delay)
                     await new Promise(resolve => setTimeout(resolve, 300));
                     
                     if (isMountedRef.current) {
                       safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
                       safeSetState(setCameraError, null);
+                      safeSetState(setIsScanning, false);
                     }
                   }}
                   className="flex items-center space-x-2 text-sm text-navy-600 hover:text-navy-700 font-medium"
