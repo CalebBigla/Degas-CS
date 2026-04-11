@@ -665,7 +665,7 @@ export function UserDashboardPage() {
             <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
               <div className="mx-auto max-w-[400px]">
                 {/* ID Card - Clean Light Design */}
-                <div id="id-card-container" className="rounded-2xl bg-white overflow-hidden shadow-xl border border-gray-200">
+                <div id="id-card-container" className="rounded-2xl bg-white overflow-hidden shadow-xl border border-gray-200" style={{ width: '91mm', height: '55mm', maxWidth: '100%' }}>
                   
                   {/* Card Body */}
                   <div className="px-6 py-8 flex flex-col items-center text-center space-y-5">
