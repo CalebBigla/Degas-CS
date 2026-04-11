@@ -167,6 +167,28 @@ export function UserDashboardPage() {
     return hoursSinceLastScan >= 24;
   };
 
+  const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
+    try {
+      const response = await fetch(imageUrl, {
+        mode: 'cors',
+        credentials: 'omit'
+      });
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.warn('Failed to convert image to base64:', error);
+      return null;
+    }
+  };
+
   const downloadIDCard = async () => {
     try {
       if (!userData?.name || !userData?.email) {
@@ -215,9 +237,12 @@ export function UserDashboardPage() {
 
       if (userData?.profileImageUrl) {
         try {
-          pdf.addImage(userData.profileImageUrl, 'JPEG', profileImageX - profileImageSize / 2, profileImageY - profileImageSize / 2, profileImageSize, profileImageSize);
+          const base64Image = await convertImageToBase64(userData.profileImageUrl);
+          if (base64Image) {
+            pdf.addImage(base64Image, 'JPEG', profileImageX - profileImageSize / 2, profileImageY - profileImageSize / 2, profileImageSize, profileImageSize);
+          }
         } catch (imgError) {
-          console.warn('Could not load profile image for PDF');
+          console.warn('Could not add profile image to PDF:', imgError);
         }
       }
 
