@@ -199,15 +199,15 @@ export function UserDashboardPage() {
 
       const imgData = canvas.toDataURL('image/png');
 
-      // Create PDF with credit card dimensions (91mm × 55mm)
+      // Create PDF with portrait orientation (55mm × 91mm)
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
-        format: [91, 55]
+        format: [55, 91]
       });
 
-      // Add the captured image to PDF
-      pdf.addImage(imgData, 'PNG', 0, 0, 91, 55);
+      // Add the captured image to PDF (portrait)
+      pdf.addImage(imgData, 'PNG', 0, 0, 55, 91);
 
       // Save the PDF
       pdf.save(`ID_Card_${userData.name.replace(/\s+/g, '_')}.pdf`);
