@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Camera, CameraOff, CheckCircle, XCircle, User, RefreshCw } from 'lucide-react';
+import { Camera, CameraOff, CheckCircle, XCircle, User, RefreshCw, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { SimplifiedQRScanner } from '../components/scanner/SimplifiedQRScanner';
 
@@ -45,6 +47,13 @@ export function ScannerPage() {
   const [selectedTableId, setSelectedTableId] = useState<string>('');
   const [tables, setTables] = useState<Table[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const startScanner = () => {
     setCameraError(null);
@@ -212,10 +221,20 @@ export function ScannerPage() {
   return (
     <div className="min-h-screen bg-charcoal p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">QR Scanner</h1>
-          <p className="text-gray-300">Scan QR codes for access verification</p>
+        {/* Header with Logout Button */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-white mb-2">QR Scanner</h1>
+            <p className="text-gray-300">Scan QR codes for access verification</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="ml-4 p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2"
+            title="Logout"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="hidden sm:inline text-sm font-medium">Logout</span>
+          </button>
         </div>
 
         {/* Scanner Container */}

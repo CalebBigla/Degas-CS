@@ -37,7 +37,8 @@ export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
-  const pathPrefix = isAdmin ? '/admin' : '/user';
+  const isFollowUp = userRole === 'follow_up';
+  const pathPrefix = (isAdmin || isFollowUp) ? '/admin' : '/user';
 
   // Fetch recent registrations for notification count
   const { data: recentRegistrations } = useQuery(
