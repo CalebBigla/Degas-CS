@@ -104,18 +104,41 @@ export function DashboardPage() {
     return `${registration.name} has completed registration`;
   };
 
-  const formatTimeAgo = (timestamp: string) => {
-    const now = new Date();
-    const then = new Date(timestamp);
-    const diffMs = now.getTime() - then.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  const formatTimeAgo = (timestamp: string | null | undefined) => {
+    // Handle null, undefined, or empty timestamps
+    if (!timestamp) {
+      return 'Recently';
+    }
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
-    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    try {
+      const now = new Date();
+      const then = new Date(timestamp);
+      
+      // Check if the date is invalid
+      if (isNaN(then.getTime())) {
+        console.warn('Invalid date:', timestamp);
+        return 'Recently';
+      }
+
+      const diffMs = now.getTime() - then.getTime();
+      
+      // Handle future dates (if computer clock is off)
+      if (diffMs < 0) {
+        return 'Just now';
+      }
+
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+      if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Recently';
+    }
   };
 
   return (

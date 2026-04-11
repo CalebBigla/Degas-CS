@@ -676,17 +676,32 @@ export const getRecentRegistrations = async (req: AuthRequest, res: Response) =>
         id,
         name,
         email,
-        createdat as createdAt
+        createdat
       FROM users
+      WHERE createdat IS NOT NULL
       ORDER BY createdat DESC
       LIMIT ?
     `, [limit]);
 
     logger.info(`✅ [getRecentRegistrations] Found ${registrations.length} registrations`);
 
+    // Transform to ensure createdAt is a proper ISO string
+    const transformedRegistrations = registrations.map((reg: any) => ({
+      id: reg.id,
+      name: reg.name,
+      email: reg.email,
+      createdAt: reg.createdat ? new Date(reg.createdat).toISOString() : new Date().toISOString()
+    }));
+
+    logger.info(`📊 [getRecentRegistrations] Sample registration:`, {
+      id: transformedRegistrations[0]?.id,
+      name: transformedRegistrations[0]?.name,
+      createdAt: transformedRegistrations[0]?.createdAt
+    });
+
     res.json({
       success: true,
-      data: registrations
+      data: transformedRegistrations
     });
 
   } catch (error) {
