@@ -689,19 +689,19 @@ export function UserDashboardPage() {
             <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm">
               <div className="mx-auto max-w-[400px]">
                 {/* ID Card - Clean Light Design */}
-                <div id="id-card-container" className="rounded-2xl bg-white overflow-hidden shadow-xl border border-gray-200" style={{ width: '91mm', height: '55mm', maxWidth: '100%' }}>
+                <div id="id-card-container" className="rounded-2xl bg-white overflow-hidden shadow-xl border border-gray-200" style={{ width: '55mm', minHeight: '91mm', maxWidth: '100%', display: 'flex', flexDirection: 'column' }}>
                   
                   {/* Card Body */}
-                  <div className="px-6 py-8 flex flex-col items-center text-center space-y-5">
+                  <div className="flex-1 px-4 py-6 flex flex-col items-center text-center space-y-4">
                     
                     {/* Form Name / Organization - Bold and Centered, No TFG */}
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 className="text-base font-bold text-gray-900">
                       {userData?.formName || 'The Force of Grace Ministry'}
                     </h2>
 
                     {/* Profile Image */}
                     <div className="relative">
-                      <div className="w-28 h-28 rounded-full overflow-hidden bg-gray-100 shadow-lg border-4 border-gray-200">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 shadow-lg border-3 border-gray-200">
                         {userData?.profileImageUrl ? (
                           <img 
                             src={userData.profileImageUrl} 
@@ -710,7 +710,7 @@ export function UserDashboardPage() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-4xl font-bold text-gray-400">
+                            <span className="text-2xl font-bold text-gray-400">
                               {getUserInitials()}
                             </span>
                           </div>
@@ -720,7 +720,7 @@ export function UserDashboardPage() {
 
                     {/* User Name and Phone */}
                     <div className="space-y-1">
-                      <h3 className="text-2xl font-bold text-gray-900">
+                      <h3 className="text-lg font-bold text-gray-900">
                         {userData?.name || 'Church Member'}
                       </h3>
                       {/* Phone Number (replaces "Member" label) */}
@@ -745,8 +745,8 @@ export function UserDashboardPage() {
                   </div>
 
                   {/* Member Badge at Bottom */}
-                  <div className="bg-gray-600 py-3 px-6">
-                    <p className="text-center text-white text-base font-bold uppercase tracking-widest">
+                  <div className="bg-gray-600 py-2 px-4 mt-auto">
+                    <p className="text-center text-white text-sm font-bold uppercase tracking-widest">
                       MEMBER
                     </p>
                   </div>
