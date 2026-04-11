@@ -90,27 +90,31 @@ export function ScannerPage() {
 
     console.log('🎬 Starting scanner with html5-qrcode library...');
     
-    scanner.render(
-      async (decodedText) => {
-        console.log('✅ QR Code detected:', decodedText.substring(0, 50));
-        setIsProcessing(true);
-        await handleScanSuccess(decodedText);
-        scanner.clear().catch(() => {});
-        setIsScanning(false);
-        setIsProcessing(false);
-      },
-      (error) => {
-        // Only log actual errors, not "no QR found" messages
-        if (!error.includes('NotFoundException')) {
-          console.warn('⚠️ Scanner error:', error);
+    try {
+      // scanner.render() does NOT return a promise, it renders immediately
+      scanner.render(
+        async (decodedText) => {
+          console.log('✅ QR Code detected:', decodedText.substring(0, 50));
+          setIsProcessing(true);
+          await handleScanSuccess(decodedText);
+          scanner.clear().catch(() => {});
+          setIsScanning(false);
+          setIsProcessing(false);
+        },
+        (error) => {
+          // Only log actual errors, not "no QR found" messages
+          if (!error.includes('NotFoundException')) {
+            console.warn('⚠️ Scanner error:', error);
+          }
         }
-      }
-    ).then(() => {
+      );
+      
       console.log('✅ Scanner rendered successfully');
       setIsScanning(true);
       setScanResult(null);
       setShowResult(false);
-    }).catch((err) => {
+      
+    } catch (err: any) {
       console.error('❌ Scanner initialization error:', err);
       console.error('Error details:', {
         message: err?.message,
@@ -133,7 +137,7 @@ export function ScannerPage() {
       setCameraError(errorMsg);
       setIsScanning(false);
       setIsProcessing(false);
-    });
+    }
 
     scannerRef.current = scanner;
   };
