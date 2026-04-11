@@ -828,6 +828,63 @@ class FixedUserController {
       });
     }
   }
+
+  /**
+   * Get current user's profile
+   * GET /api/form/me
+   * Requires authentication
+   */
+  async getMe(req: any, res: Response) {
+    try {
+      // req.user.userId should be set by auth middleware
+      const userId = req.user?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+
+      // Fetch user profile from users table
+      const user = await db.get(
+        'SELECT id, name, email, phone, address, profileimageurl, scanned, scannedat, formid FROM users WHERE id = ?',
+        [userId]
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User profile not found'
+        });
+      }
+
+      logger.info('✅ User profile retrieved', { userId, email: user.email });
+
+      res.json({
+        success: true,
+        data: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          address: user.address,
+          profileimageurl: user.profileimageurl,
+          scanned: user.scanned,
+          scannedAt: user.scannedat,
+          formId: user.formid
+        }
+      });
+
+    } catch (error: any) {
+      logger.error('Get current user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch user profile',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 }
 
 export default new FixedUserController();

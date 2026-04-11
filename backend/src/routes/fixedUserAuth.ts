@@ -1,5 +1,6 @@
 import express from 'express';
 import fixedUserController from '../controllers/fixedUserController';
+import { authenticateToken } from '../middleware/auth';
 import logger from '../config/logger';
 
 const router = express.Router();
@@ -108,5 +109,8 @@ router.get('/logs/:formId', fixedUserController.getAccessLogs.bind(fixedUserCont
 
 // Analytics - GET /api/form/analytics/:formId
 router.get('/analytics/:formId', fixedUserController.getAnalytics.bind(fixedUserController));
+
+// Get current user's profile - GET /api/form/me (requires authentication)
+router.get('/me', authenticateToken, fixedUserController.getMe.bind(fixedUserController));
 
 export default router;

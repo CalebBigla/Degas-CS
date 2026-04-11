@@ -87,7 +87,19 @@ export function UserDashboardPage() {
       const storedUser = localStorage.getItem('degas_user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        setUserData(parsedUser);
+        let userDataWithProfile = { ...parsedUser };
+        
+        // Fetch user's actual profile image from database
+        try {
+          const response = await api.get('/form/me');
+          if (response.data?.data?.profileimageurl) {
+            userDataWithProfile.profileImageUrl = response.data.data.profileimageurl;
+          }
+        } catch (error) {
+          console.warn('Could not fetch profile image from database:', error);
+        }
+        
+        setUserData(userDataWithProfile);
         
         if (parsedUser.qrCode) {
           setQrCodeImage(parsedUser.qrCode);
