@@ -180,11 +180,16 @@ export function UserDashboardPage() {
       const idCardElement = document.getElementById('id-card-container');
       if (!idCardElement) {
         toast.error('ID card not found');
+        toast.dismiss();
         return;
       }
 
+      // Dynamically import html2canvas to ensure it loads properly
+      const html2canvasModule = await import('html2canvas');
+      const html2canvasFunc = html2canvasModule.default;
+
       // Capture the ID card as an image using html2canvas
-      const canvas = await html2canvas(idCardElement, {
+      const canvas = await html2canvasFunc(idCardElement, {
         scale: 3, // Higher quality
         backgroundColor: '#ffffff',
         logging: false,
@@ -205,14 +210,14 @@ export function UserDashboardPage() {
       pdf.addImage(imgData, 'PNG', 0, 0, 91, 55);
 
       // Save the PDF
-      pdf.save(`ID_Card_${userData.name}.pdf`);
+      pdf.save(`ID_Card_${userData.name.replace(/\s+/g, '_')}.pdf`);
 
       toast.dismiss();
       toast.success('ID Card PDF downloaded!');
     } catch (error) {
       console.error('Error generating ID Card PDF:', error);
       toast.dismiss();
-      toast.error('Failed to generate ID Card PDF');
+      toast.error(`Failed to generate ID Card PDF: ${error.message}`);
     }
   };
 
