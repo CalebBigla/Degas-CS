@@ -322,38 +322,71 @@ export function UserDashboardPage() {
       {/* Mobile App Style Header */}
       <div className="bg-[hsl(var(--sidebar-background))] px-5 py-4 shadow-md">
         <div className="max-w-[720px] mx-auto">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between mb-3">
-            {/* Hamburger Menu */}
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-              aria-label="Menu"
-            >
-              <Menu className="h-5 w-5 text-white" />
-            </button>
+          {/* Single Row Layout */}
 
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-              title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              aria-label="Toggle theme"
-            >
-              {theme === 'light' ? (
-                <Moon className="h-5 w-5 text-white" />
-              ) : (
-                <Sun className="h-5 w-5 text-white" />
-              )}
-            </button>
-          </div>
+          <div className="flex items-center justify-between">
 
-          {/* Welcome Text */}
-          <div>
-            <h1 className="text-2xl font-bold text-white">
-              Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
-            </h1>
-            <p className="text-white/70 text-xs font-medium mt-0.5">User Dashboard</p>
+            {/* Left: Welcome Text */}
+
+            <div>
+
+              <h1 className="text-2xl font-bold text-white">
+
+                Welcome, <span className="text-primary">{userData?.name?.split(' ')[0] || 'Church'}</span>
+
+              </h1>
+
+              <p className="text-white/70 text-xs font-medium mt-0.5">User Dashboard</p>
+
+            </div>
+
+
+            {/* Right: Icons */}
+
+            <div className="flex items-center gap-2">
+
+              <button
+
+                onClick={toggleTheme}
+
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+
+                title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+
+                aria-label="Toggle theme"
+
+              >
+
+                {theme === 'light' ? (
+
+                  <Moon className="h-5 w-5 text-white" />
+
+                ) : (
+
+                  <Sun className="h-5 w-5 text-white" />
+
+                )}
+
+              </button>
+
+              
+
+              <button
+
+                onClick={() => setShowMenu(!showMenu)}
+
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+
+                aria-label="Menu"
+
+              >
+
+                <Menu className="h-5 w-5 text-white" />
+
+              </button>
+
+            </div>
+
           </div>
         </div>
       </div>
