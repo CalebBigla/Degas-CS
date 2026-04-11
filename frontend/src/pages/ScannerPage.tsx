@@ -188,11 +188,20 @@ export function ScannerPage() {
   const stopScanner = () => {
     if (scannerRef.current) {
       try {
-        scannerRef.current.clear();
+        // First try to clear - this is the main html5-qrcode cleanup
+        try {
+          scannerRef.current.clear();
+        } catch (clearError) {
+          console.warn('⚠️ Error during scanner.clear():', clearError);
+          // Continue with null assignment even if clear fails
+        }
+        
+        // Force remove scanner reference
+        scannerRef.current = null;
       } catch (error) {
-        console.warn('Error during scanner cleanup:', error);
+        console.error('Error in stopScanner:', error);
+        scannerRef.current = null;
       }
-      scannerRef.current = null;
     }
     safeSetState(setIsScanning, false);
   };
@@ -294,18 +303,22 @@ export function ScannerPage() {
       }
     });
 
-    // Cleanup on unmount
+    // Cleanup on unmount or mode switch
     return () => {
       isMountedRef.current = false;
       
-      // Clear scanner if it exists
-      if (scannerRef.current) {
-        try {
-          scannerRef.current.clear();
-        } catch (error) {
-          console.warn('Error clearing scanner on unmount:', error);
+      // First, call stopScanner to ensure proper cleanup sequence
+      try {
+        if (scannerRef.current) {
+          try {
+            scannerRef.current.clear();
+          } catch (clearErr) {
+            console.warn('Cleanup: Error during clear():', clearErr);
+          }
+          scannerRef.current = null;
         }
-        scannerRef.current = null;
+      } catch (error) {
+        console.error('Cleanup: Unexpected error:', error);
       }
     };
   }, []);
@@ -377,9 +390,15 @@ export function ScannerPage() {
                 </span>
                 <button
                   onClick={() => {
+                    // Stop scanner first
                     stopScanner();
-                    safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
-                    safeSetState(setCameraError, null);
+                    // Give html5-qrcode time to cleanup
+                    setTimeout(() => {
+                      if (isMountedRef.current) {
+                        safeSetState(setUseSimplifiedScanner, !useSimplifiedScanner);
+                        safeSetState(setCameraError, null);
+                      }
+                    }, 100);
                   }}
                   className="flex items-center space-x-2 text-sm text-navy-600 hover:text-navy-700 font-medium"
                 >
@@ -404,7 +423,7 @@ export function ScannerPage() {
                   />
                 </div>
               ) : (
-                /* Original Scanner */
+                /* Original Scanner - Controls Only */
                 <>
                   {/* Scanner Controls */}
                   <div className="p-6 border-b border-gray-200">
@@ -429,7 +448,7 @@ export function ScannerPage() {
                     </div>
                   </div>
 
-                  {/* Scanner Area */}
+                  {/* Scanner Area - Error and Loading Display */}
                   <div className="p-6 bg-white">
                     {cameraError && (
                       <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
@@ -457,26 +476,27 @@ export function ScannerPage() {
                         </div>
                       </div>
                     )}
-                    
-                    {/* QR Reader - ALWAYS MOUNT AND VISIBLE IN DOM */}
-                    {/* Do not hide with display:none - html5-qrcode needs div to stay visible for cleanup */}
-                    <div 
-                      id="qr-reader" 
-                      className="w-full" 
-                      style={{ 
-                        minHeight: '400px'
-                      }}
-                    >
-                      {!isScanning && !cameraError && (
-                        <div className="text-center py-12">
-                          <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-600">Click "Start Scanner" to begin</p>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </>
               )}
+
+              {/* QR Reader Div - ALWAYS IN DOM, NEVER UNMOUNTED */}
+              {/* This must be outside the conditional rendering to prevent unmount conflicts with html5-qrcode cleanup */}
+              <div 
+                id="qr-reader" 
+                className="w-full bg-white" 
+                style={{ 
+                  minHeight: '400px',
+                  display: useSimplifiedScanner ? 'none' : 'block'
+                }}
+              >
+                {!isScanning && !cameraError && !useSimplifiedScanner && (
+                  <div className="text-center py-12">
+                    <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Click "Start Scanner" to begin</p>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             /* Scan Result Display */

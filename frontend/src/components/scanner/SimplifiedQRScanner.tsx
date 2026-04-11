@@ -37,7 +37,30 @@ export function SimplifiedQRScanner({ onScanSuccess, onScanError, selectedTableI
       });
 
     return () => {
-      stopScanning();
+      // Cleanup on unmount - stop scanner if it's running
+      (async () => {
+        if (html5QrCodeRef.current) {
+          try {
+            // Stop the scanner
+            try {
+              await html5QrCodeRef.current.stop();
+            } catch (stopErr) {
+              console.warn('Cleanup: Error stopping scanner:', stopErr);
+            }
+            
+            // Clear the scanner
+            try {
+              html5QrCodeRef.current.clear();
+            } catch (clearErr) {
+              console.warn('Cleanup: Error clearing scanner:', clearErr);
+            }
+          } catch (err) {
+            console.warn('Cleanup: Error:', err);
+          } finally {
+            html5QrCodeRef.current = null;
+          }
+        }
+      })();
     };
   }, []);
 
@@ -90,15 +113,29 @@ export function SimplifiedQRScanner({ onScanSuccess, onScanError, selectedTableI
   };
 
   const stopScanning = async () => {
-    if (html5QrCodeRef.current && isScanning) {
+    if (html5QrCodeRef.current) {
       try {
-        await html5QrCodeRef.current.stop();
-        html5QrCodeRef.current.clear();
+        // Stop scanning first
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (stopErr) {
+          console.warn('⚠️ Error stopping scanner:', stopErr);
+        }
+        
+        // Then clear the scanner
+        try {
+          html5QrCodeRef.current.clear();
+        } catch (clearErr) {
+          console.warn('⚠️ Error clearing scanner:', clearErr);
+        }
+        
         html5QrCodeRef.current = null;
-        setIsScanning(false);
       } catch (err) {
-        console.error('Stop scanning error:', err);
+        console.error('Error in stopScanning:', err);
+        html5QrCodeRef.current = null;
       }
+      
+      setIsScanning(false);
     }
   };
 
