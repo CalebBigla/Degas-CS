@@ -448,24 +448,24 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
     if (dbType === 'sqlite') {
       topUsersQuery = `
         SELECT 
-          json_extract(du.data, '$.fullName') as name,
+          u.name as name,
           COUNT(*) as scans
         FROM access_logs al
-        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE ${dateFilter}
-        GROUP BY al.user_id
+        GROUP BY al.user_id, u.name
         ORDER BY scans DESC
         LIMIT 10
       `;
     } else {
       topUsersQuery = `
         SELECT 
-          (du.data::jsonb->>'fullName') as name,
+          u.name as name,
           COUNT(*) as scans
         FROM access_logs al
-        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE ${dateFilter}
-        GROUP BY al.user_id, (du.data::jsonb->>'fullName')
+        GROUP BY al.user_id, u.name
         ORDER BY scans DESC
         LIMIT 10
       `;
@@ -478,12 +478,12 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
       recentLogsQuery = `
         SELECT 
           al.id,
-          json_extract(du.data, '$.fullName') as userName,
+          u.name as userName,
           al.scan_timestamp as timestamp,
           CASE WHEN al.access_granted = 1 THEN 'granted' ELSE 'denied' END as status,
           al.scanner_location as location
         FROM access_logs al
-        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE ${dateFilter}
         ORDER BY al.scan_timestamp DESC
         LIMIT 20
@@ -492,12 +492,12 @@ export const getAnalyticsLogs = async (req: AuthRequest, res: Response) => {
       recentLogsQuery = `
         SELECT 
           al.id,
-          (du.data::jsonb->>'fullName') as "userName",
+          u.name as "userName",
           al.scan_timestamp as timestamp,
           CASE WHEN al.access_granted = true THEN 'granted' ELSE 'denied' END as status,
           al.scanner_location as location
         FROM access_logs al
-        LEFT JOIN dynamic_users du ON al.user_id = du.id
+        LEFT JOIN users u ON al.user_id = u.id
         WHERE ${dateFilter}
         ORDER BY al.scan_timestamp DESC
         LIMIT 20
