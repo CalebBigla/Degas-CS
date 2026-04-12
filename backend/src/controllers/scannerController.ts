@@ -152,7 +152,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       success: true,
       user: userObj,
       accessGranted,
-      message: 'Access granted'
+      message: 'Present'
     };
 
     // Attach schema and field values for frontend to display dynamically
