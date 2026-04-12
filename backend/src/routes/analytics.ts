@@ -81,4 +81,62 @@ router.post('/reset-attendance', requireRole(['super_admin']), manualResetAttend
 // Access: Super Admin ONLY
 router.post('/reset-user/:userId', requireRole(['super_admin']), resetIndividualUser);
 
+// DANGER: Delete all analytics data (analytics_log, access_log, and reset users.scanned)
+// This is a destructive operation that clears all attendance history
+// Access: Super Admin ONLY
+router.post('/reset-all-analytics', requireRole(['super_admin']), async (req, res) => {
+  try {
+    const { getDatabase } = await import('../config/database');
+    const db = getDatabase();
+    const dbType = process.env.DATABASE_TYPE || 'sqlite';
+    
+    // Delete from analytics_log
+    let analyticsDeleted = 0;
+    try {
+      const result1 = await db.run('DELETE FROM analytics_log') as any;
+      analyticsDeleted = result1?.changes || result1?.rowCount || 0;
+    } catch (e) {
+      // Table might not exist
+    }
+    
+    // Delete from access_log
+    let accessLogDeleted = 0;
+    try {
+      const result2 = await db.run('DELETE FROM access_log') as any;
+      accessLogDeleted = result2?.changes || result2?.rowCount || 0;
+    } catch (e) {
+      // Table might not exist
+    }
+    
+    // Reset users.scanned fields
+    let usersReset = 0;
+    try {
+      const result3 = await db.run(
+        dbType === 'sqlite'
+          ? `UPDATE users SET scanned = 0, scannedat = NULL WHERE scanned = 1`
+          : `UPDATE users SET scanned = false, scannedat = NULL WHERE scanned = true`
+      ) as any;
+      usersReset = result3?.changes || result3?.rowCount || 0;
+    } catch (e) {
+      // Table might not exist
+    }
+    
+    return res.json({
+      success: true,
+      message: 'All analytics data has been reset',
+      deleted: {
+        analyticsLog: analyticsDeleted,
+        accessLog: accessLogDeleted,
+        usersReset: usersReset
+      }
+    });
+  } catch (error) {
+    console.error('Error resetting analytics:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to reset analytics data'
+    });
+  }
+});
+
 export default router;
