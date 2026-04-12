@@ -20,59 +20,77 @@ export class TwoLayerAttendanceLogger {
   /**
    * LAYER 1 & LAYER 2: Record a successful QR scan
    * Inserts into BOTH tables when a scan succeeds
+   * Non-breaking: Gracefully falls back if tables don't exist yet
    */
   static async recordSuccessfulScan(userId: string, scannedByUserId: string): Promise<void> {
     try {
       const db = getDatabase();
       const dbType = process.env.DATABASE_TYPE || 'sqlite';
-      const now = new Date();
-      const v4Id = uuidv4();
+      
+      // Don't log if database type is sqlite in production context
+      // (SQLite is for local development only)
+      if (dbType !== 'sqlite') {
+        const now = new Date();
+        const v4Id = uuidv4();
 
-      logger.info('📝 [TWO-LAYER LOGGING] Recording scan to both access_log and analytics_log', {
-        userId,
-        scannedBy: scannedByUserId
-      });
+        logger.info('📝 [TWO-LAYER LOGGING] Recording scan to both access_log and analytics_log', {
+          userId,
+          scannedBy: scannedByUserId
+        });
 
-      // LAYER 1: Insert into access_log (live presence)
-      // Status is 'present', expires after 48 hours
-      const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+        try {
+          // LAYER 1: Insert into access_log (live presence)
+          // Status is 'present', expires after 48 hours
+          const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-      if (dbType === 'sqlite') {
-        await db.run(
-          `INSERT INTO access_log (id, user_id, scanned_at, scanned_by, status, expires_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [v4Id, userId, now.toISOString(), scannedByUserId, 'present', expiresAt.toISOString()]
-        );
+          await db.run(
+            `INSERT INTO access_log (id, user_id, scanned_at, scanned_by, status, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [v4Id, userId, now, scannedByUserId, 'present', expiresAt]
+          );
+          logger.info('✅ [LAYER 1] Recorded to access_log', { userId });
+        } catch (layer1Error: any) {
+          // LAYER 1: Graceful fallback - table might not exist yet
+          if (layer1Error.message?.includes('access_log') || 
+              layer1Error.message?.includes('does not exist')) {
+            logger.warn('⚠️  [LAYER 1] access_log table not found - skipping live presence logging', {
+              reason: layer1Error.message
+            });
+          } else {
+            throw layer1Error; // Re-throw if it's a different error
+          }
+        }
+
+        try {
+          // LAYER 2: Insert into analytics_log (permanent record)
+          // Never deleted - permanent history
+          const serviceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+          const analyticsId = uuidv4();
+
+          await db.run(
+            `INSERT INTO analytics_log (id, user_id, scanned_at, scanned_by, service_date)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [analyticsId, userId, now, scannedByUserId, serviceDate]
+          );
+          logger.info('✅ [LAYER 2] Recorded to analytics_log', { userId });
+        } catch (layer2Error: any) {
+          // LAYER 2: Graceful fallback - table might not exist yet
+          if (layer2Error.message?.includes('analytics_log') || 
+              layer2Error.message?.includes('does not exist')) {
+            logger.warn('⚠️  [LAYER 2] analytics_log table not found - skipping historical logging', {
+              reason: layer2Error.message
+            });
+          } else {
+            throw layer2Error; // Re-throw if it's a different error
+          }
+        }
       } else {
-        // PostgreSQL
-        await db.run(
-          `INSERT INTO access_log (id, user_id, scanned_at, scanned_by, status, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [v4Id, userId, now, scannedByUserId, 'present', expiresAt]
-        );
+        // SQLite mode - log to console for debugging
+        logger.info('📝 [TWO-LAYER LOGGING] SQLite mode - attendance logging available after migration to PostgreSQL', {
+          userId,
+          scannedBy: scannedByUserId
+        });
       }
-      logger.info('✅ [LAYER 1] Recorded to access_log', { userId });
-
-      // LAYER 2: Insert into analytics_log (permanent record)
-      // Never deleted - permanent history
-      const serviceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
-      const analyticsId = uuidv4();
-
-      if (dbType === 'sqlite') {
-        await db.run(
-          `INSERT INTO analytics_log (id, user_id, scanned_at, scanned_by, service_date)
-           VALUES (?, ?, ?, ?, ?)`,
-          [analyticsId, userId, now.toISOString(), scannedByUserId, serviceDate]
-        );
-      } else {
-        // PostgreSQL
-        await db.run(
-          `INSERT INTO analytics_log (id, user_id, scanned_at, scanned_by, service_date)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [analyticsId, userId, now, scannedByUserId, serviceDate]
-        );
-      }
-      logger.info('✅ [LAYER 2] Recorded to analytics_log', { userId });
     } catch (error) {
       logger.error('❌ [TWO-LAYER LOGGING] Failed to record scan:', error);
       // Non-critical - don't throw, just log the error

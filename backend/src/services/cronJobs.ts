@@ -55,7 +55,7 @@ async function resetExpiredAttendance() {
       // PostgreSQL: Use timestamp comparison
       result = await db.run(
         `UPDATE access_log 
-         SET status = 'absent' 
+         SET status = 'absent'
          WHERE status = 'present' 
          AND expires_at < NOW()`
       );
@@ -69,8 +69,15 @@ async function resetExpiredAttendance() {
     }
 
     return affectedRows;
-  } catch (error) {
+  } catch (error: any) {
+    // Graceful fallback if access_log table doesn't exist yet
+    if (error.message?.includes('access_log') || error.message?.includes('does not exist')) {
+      logger.warn('⚠️  [CRON RUN] access_log table does not exist yet - skipping reset', {
+        reason: error.message
+      });
+      return 0;
+    }
     logger.error('❌ [CRON RUN] Attendance reset job failed:', error);
-    // Don't throw - let cron handle error gracefully
+    // Don't throw - let cron continue running
   }
 }

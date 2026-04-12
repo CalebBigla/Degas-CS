@@ -280,6 +280,34 @@ async function initializePostgreSQL(): Promise<void> {
       )
     `);
 
+    // TWO-LAYER ATTENDANCE LOGGING (Non-breaking incremental upgrade)
+    // LAYER 1: Live presence tracking with 48-hour auto-reset
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS access_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        scanned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        scanned_by UUID,
+        status TEXT NOT NULL DEFAULT 'present' CHECK (status IN ('present', 'absent')),
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    logger.info('✅ access_log table ready (LAYER 1 - Live Presence)');
+
+    // LAYER 2: Permanent historical records (never deleted)
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS analytics_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        scanned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        scanned_by UUID,
+        service_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    logger.info('✅ analytics_log table ready (LAYER 2 - Permanent History)');
+
     // Create indexes for performance
     await db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_email ON core_users(email)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_core_users_qr_token ON core_users(qr_token)`);
@@ -291,6 +319,14 @@ async function initializePostgreSQL(): Promise<void> {
     await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_sessions_active ON attendance_sessions(is_active)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_user ON attendance_audit_logs(core_user_id)`);
     await db.run(`CREATE INDEX IF NOT EXISTS idx_attendance_audit_session ON attendance_audit_logs(session_id)`);
+
+    // Indexes for two-layer attendance logging
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_access_log_user ON access_log(user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_access_log_status ON access_log(status)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_access_log_expires ON access_log(expires_at)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_analytics_log_user ON analytics_log(user_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_analytics_log_date ON analytics_log(service_date)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS idx_analytics_log_scanned ON analytics_log(scanned_at)`);
 
     // Create default admin users if none exist
     const adminCount = await db.get("SELECT COUNT(*) as count FROM admins");
