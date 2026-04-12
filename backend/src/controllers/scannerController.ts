@@ -156,7 +156,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
     // Do NOT include internal database IDs
     const buildUserFromSchema = (schema: any, data: any): any => {
       const userObj: any = {
-        fullName: getNameFromSchema(schema, data),
+        name: getNameFromSchema(schema, data),
         photoUrl: user!.photoUrl,
         status: 'active'
         // NOTE: Do not include database id, qrHash, createdAt, updatedAt - these are internal
@@ -166,7 +166,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       logger.info('📋 Built user object from schema:', {
         schemaFieldCount: schema?.fields?.length || 0,
         userHasPhoto: !!user!.photoUrl,
-        nameValue: userObj.fullName
+        nameValue: userObj.name
       });
 
       return userObj;
@@ -207,7 +207,7 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       fieldValues: user!.data || {}
     };
 
-    logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${userObj.fullName}`);
+    logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${userObj.name}`);
     logger.info('📍 CHECKPOINT: Sending successful verification response');
 
     return res.status(200).json({
@@ -280,12 +280,12 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
 
     // Build user object from schema - SAME AS ADMIN
     const nameField = tableSchema?.fields?.[0]?.name;
-    const fullName = nameField && user!.data[nameField] 
+    const name = nameField && user!.data[nameField] 
       ? (typeof user!.data[nameField] === 'string' ? user!.data[nameField].trim() : String(user!.data[nameField]))
       : 'Unknown User';
 
     const userObj: any = {
-      fullName: fullName,
+      name: name,
       photoUrl: user!.photoUrl,
       status: 'active'
     };

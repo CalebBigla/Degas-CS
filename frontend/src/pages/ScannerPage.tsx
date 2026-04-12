@@ -737,7 +737,7 @@ export function ScannerPage() {
 
                     {/* User Name */}
                     <h3 className="text-xl font-semibold text-charcoal mb-3 text-center">
-                      {scanResult.user.name || scanResult.user.fullName || 'User'}
+                      {scanResult.user.name || 'User'}
                     </h3>
 
                     {/* Table Info - Show for admin only */}
