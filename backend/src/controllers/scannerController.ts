@@ -318,7 +318,7 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
       fieldValues: user!.data || {}
     };
 
-    logger.log('✅ [GREETER_SCAN] Sending successful response');
+    logger.info('✅ [GREETER_SCAN] Sending successful response');
     return res.status(200).json({
       success: true,
       data: enrichedResult
