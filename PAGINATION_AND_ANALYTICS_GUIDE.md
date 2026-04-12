@@ -42,7 +42,21 @@ Analytics data is stored in three tables:
 2. **access_log** - Layer 1: Live presence tracking (resets after 48 hours)
 3. **analytics_log** - Layer 2: Permanent historical record (never auto-resets)
 
-### Method 1: Using the Reset Script (Recommended)
+### Method 1: Using Supabase SQL Editor (Recommended for Production)
+
+1. Go to your Supabase Dashboard
+2. Click **SQL Editor** → **New Query**
+3. Run this SQL:
+
+```sql
+DELETE FROM access_logs;
+DELETE FROM access_log;
+DELETE FROM analytics_log;
+```
+
+See `RESET_ANALYTICS_SUPABASE.md` for detailed instructions.
+
+### Method 2: Using the Reset Script (Local Development)
 
 Run this command from the backend directory:
 
@@ -58,7 +72,7 @@ The script will:
 - Verify deletion was successful
 - **Note**: Does NOT reset user attendance status (users.scanned field)
 
-### Method 2: Manual Database Commands
+### Method 3: Manual Database Commands
 
 #### For SQLite (Local Development):
 ```bash
@@ -72,15 +86,8 @@ DELETE FROM analytics_log;
 .quit
 ```
 
-#### For PostgreSQL (Production - Neon):
-```bash
-# Connect to your Neon database using psql or the Neon console
-# Then run:
-
-DELETE FROM access_logs;
-DELETE FROM access_log;
-DELETE FROM analytics_log;
-```
+#### For Supabase/PostgreSQL (Production):
+Use the Supabase SQL Editor (Method 1) or connect via psql
 
 ### Method 3: Reset User Attendance (Separate)
 
