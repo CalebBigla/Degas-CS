@@ -1,46 +1,23 @@
-import cron from 'node-cron';
 import { getDatabase } from '../config/database';
 import logger from '../config/logger';
 
 /**
- * Cron jobs for attendance system
- * Handles 48-hour auto-reset of presence status
+ * DEPRECATED: Cron jobs removed - use manual reset button instead
+ * Auto-reset via cron was removed to simplify deployment and reduce dependencies.
+ * Superadmin can manually reset all attendance status via the API endpoint.
  */
-
-export async function initAttendanceAutoCrons() {
-  try {
-    logger.info('⏰ [CRON INIT] Scheduling attendance auto-reset jobs...');
-
-    // Run every hour: Reset expired 'present' records to 'absent'
-    // Cron format: minute, hour, day of month, month, day of week
-    // '0 * * * *' = every hour at the 0-minute mark
-    const cronJob = cron.schedule('0 * * * *', async () => {
-      await resetExpiredAttendance();
-    });
-
-    cronJob.start();
-    logger.info('✅ [CRON] Hourly attendance reset job scheduled');
-
-    // Also run on startup to catch any expired records immediately
-    logger.info('⏰ [CRON] Running initial attendance reset...');
-    await resetExpiredAttendance();
-
-  } catch (error) {
-    logger.error('❌ [CRON INIT] Failed to initialize cron jobs:', error);
-    throw error;
-  }
-}
 
 /**
  * Reset all expired 'present' records to 'absent'
- * Called by cron job and on startup
+ * DEPRECATED: Called only via manual API endpoint
+ * This is no longer automatic - admins trigger via dashboard button
  */
-async function resetExpiredAttendance() {
+export async function resetExpiredAttendance() {
   try {
     const db = getDatabase();
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
 
-    logger.info('⏰ [CRON RUN] Starting attendance expiration reset...');
+    logger.info('🔄 [MANUAL RESET] Starting attendance reset...');
 
     let result;
     if (dbType === 'sqlite') {
@@ -61,23 +38,23 @@ async function resetExpiredAttendance() {
       );
     }
 
-    const affectedRows = result?.changes || result?.rowCount || 0;
+    const affectedRows = (result as any)?.rowCount || (result as any)?.changes || 0;
     if (affectedRows > 0) {
-      logger.info(`✅ [CRON RUN] Expired ${affectedRows} attendees from 'present' to 'absent'`);
+      logger.info(`✅ [MANUAL RESET] Reset ${affectedRows} attendees from 'present' to 'absent'`);
     } else {
-      logger.debug('⏰ [CRON RUN] No expired records to reset');
+      logger.info('ℹ️ [MANUAL RESET] No present records to reset');
     }
 
     return affectedRows;
   } catch (error: any) {
     // Graceful fallback if access_log table doesn't exist yet
     if (error.message?.includes('access_log') || error.message?.includes('does not exist')) {
-      logger.warn('⚠️  [CRON RUN] access_log table does not exist yet - skipping reset', {
+      logger.warn('⚠️  [MANUAL RESET] access_log table does not exist yet - skipping reset', {
         reason: error.message
       });
       return 0;
     }
-    logger.error('❌ [CRON RUN] Attendance reset job failed:', error);
-    // Don't throw - let cron continue running
+    logger.error('❌ [MANUAL RESET] Reset operation failed:', error);
+    throw error;
   }
 }

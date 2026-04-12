@@ -187,9 +187,9 @@ export class TwoLayerAttendanceLogger {
 
       const result = await db.run(
         `UPDATE access_log SET status = 'absent' WHERE status = 'present'`
-      );
+      ) as any;
 
-      const affectedRows = result.changes || result.rowCount || 0;
+      const affectedRows = result?.rowCount || result?.changes || 0;
       logger.warn('✅ [MANUAL RESET] Attendance reset complete', { affectedRows });
       return affectedRows;
     } catch (error) {
@@ -212,7 +212,7 @@ export class TwoLayerAttendanceLogger {
         : `SELECT scanned_at, scanned_by, service_date FROM analytics_log WHERE user_id = $1 ORDER BY scanned_at DESC LIMIT 100`;
 
       const params = dbType === 'sqlite' ? [userId] : [userId];
-      const history = await db.all(query, ...params);
+      const history = await db.all(query, params);
 
       logger.info('✅ Retrieved member attendance history', { userId, count: history?.length || 0 });
       return history || [];

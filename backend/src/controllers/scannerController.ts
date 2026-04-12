@@ -184,7 +184,9 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
 
     // LAYER 1 & LAYER 2: Record scan to both access_log (live) and analytics_log (permanent)
     try {
-      await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+      if (scannedBy) {
+        await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+      }
     } catch (loggingError) {
       logger.warn('⚠️ Non-critical: Failed to log scan to attendance layers', loggingError);
       // Don't block the response if logging fails
@@ -302,7 +304,9 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
     
     // LAYER 1 & LAYER 2: Record scan to both access_log (live) and analytics_log (permanent)
     try {
-      await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+      if (scannedBy) {
+        await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+      }
     } catch (loggingError) {
       logger.warn('⚠️ [GREETER_SCAN] Non-critical: Failed to log scan to attendance layers', loggingError);
       // Don't block the response if logging fails

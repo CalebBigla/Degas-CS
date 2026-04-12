@@ -2,8 +2,6 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { TwoLayerAttendanceLogger } from '../services/twoLayerAttendanceLogger';
 import logger from '../config/logger';
-import * as csv from 'fast-csv';
-import { Writable } from 'stream';
 
 export class AttendanceAnalyticsController {
   /**
@@ -61,14 +59,12 @@ export class AttendanceAnalyticsController {
 
   /**
    * POST /api/analytics/export-absent-csv
-   * Export absent members to CSV
-   * CSV columns: Full Name, Phone, Email, Last Scanned Date
-   * Filename: absent-members-[date].csv
+   * Export absent members (returns JSON - can be converted to CSV on frontend)
    * Access: Super Admin, Follow-up team
    */
   static async exportAbsentMembersCSV(req: AuthRequest, res: Response) {
     try {
-      logger.info('📥 [ANALYTICS] Exporting absent members to CSV...');
+      logger.info('📥 [ANALYTICS] Exporting absent members...');
 
       const absentMembers = await TwoLayerAttendanceLogger.getAbsentMembers();
 
@@ -77,12 +73,13 @@ export class AttendanceAnalyticsController {
         return res.json({
           success: true,
           message: 'No absent members',
-          data: []
+          data: [],
+          timestamp: new Date().toISOString()
         });
       }
 
-      // Format data for CSV
-      const csvData = absentMembers.map((member: any) => ({
+      // Format data for export
+      const exportData = absentMembers.map((member: any) => ({
         'Full Name': member.full_name || 'N/A',
         'Phone': member.phone || 'N/A',
         'Email': member.email || 'N/A',
@@ -91,34 +88,20 @@ export class AttendanceAnalyticsController {
           : 'N/A'
       }));
 
-      // Create CSV filename
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-      const filename = `absent-members-${dateStr}.csv`;
+      logger.info('✅ [ANALYTICS] Export completed', { recordCount: exportData.length });
 
-      // Set response headers
-      res.setHeader('Content-Type', 'text/csv;charset=utf-8;');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.json({
+        success: true,
+        message: `${exportData.length} absent members`,
+        data: exportData,
+        timestamp: new Date().toISOString()
+      });
 
-      logger.info('📄 [ANALYTICS] Generating CSV file...', { filename, recordCount: csvData.length });
-
-      // Write CSV to response
-      const output = res as unknown as Writable;
-      csv
-        .write(csvData, { headers: true })
-        .pipe(output)
-        .on('finish', () => {
-          logger.info('✅ [ANALYTICS] CSV export completed', { filename, recordCount: csvData.length });
-        })
-        .on('error', (error) => {
-          logger.error('❌ [ANALYTICS] CSV export error:', error);
-        });
-
-    } catch (error) {
-      logger.error('❌ [ANALYTICS] Error exporting CSV:', error);
+    } catch (error: any) {
+      logger.error('❌ [ANALYTICS] Error exporting members:', error);
       return res.status(500).json({
         success: false,
-        error: 'Failed to export CSV'
+        error: 'Failed to export absent members'
       });
     }
   }
