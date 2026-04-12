@@ -711,7 +711,11 @@ export function ScannerPage() {
                 )}
                 
                 <h2 className="text-2xl font-bold mb-4">
-                  {scanResult?.success ? 'PRESENT' : 'NOT RECOGNIZED'}
+                  {isGreeter ? (
+                    scanResult?.success ? 'CHECKED IN' : 'NOT FOUND'
+                  ) : (
+                    scanResult?.success ? 'PRESENT' : 'NOT RECOGNIZED'
+                  )}
                 </h2>
 
                 {scanResult?.user && (
@@ -736,8 +740,8 @@ export function ScannerPage() {
                       {scanResult.user.name || scanResult.user.fullName || 'User'}
                     </h3>
 
-                    {/* Table Info */}
-                    {scanResult.tableInfo && (
+                    {/* Table Info - Show for admin only */}
+                    {!isGreeter && scanResult.tableInfo && (
                       <div className="text-center mb-4 pb-4 border-b-2 border-gray-300">
                         <p className="text-xs text-gray-600 font-medium">From Table:</p>
                         <p className="text-sm font-semibold text-blue-700">{scanResult.tableInfo.name}</p>
