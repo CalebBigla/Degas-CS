@@ -52,8 +52,11 @@ export function ScannerPage() {
   const { logout, admin, user, userRole } = useAuth();
 
   // Determine which scanner endpoint to use based on user role
-  const isAdminUser = admin !== null || userRole === 'admin' || userRole === 'super_admin';
-  const isGreeter = userRole === 'greeter';
+  // CRITICAL: Check role explicitly, not just admin object presence
+  // Admins: admin !== null AND (role === 'admin' OR 'super_admin')
+  // Greeters: admin === null AND userRole === 'greeter'
+  const isAdminUser = admin !== null && (userRole === 'admin' || userRole === 'super_admin');
+  const isGreeter = userRole === 'greeter' && admin === null;
   
   // Route to correct endpoint based on role
   // Admin: /scanner/verify (admin-only validation)
@@ -435,18 +438,28 @@ export function ScannerPage() {
     // Fetch available tables for the selector (admin only)
     const fetchTables = async () => {
       // Only fetch tables for admin users
+      console.log('📋 [SCANNER] Checking if should fetch tables:', { isAdminUser, userRole });
+      
       if (!isAdminUser) {
+        console.log('✅ [SCANNER] Skipping table fetch - user is not admin');
         safeSetState(setLoadingTables, false);
         return;
       }
 
+      console.log('📋 [SCANNER] Fetching tables for admin user...');
       try {
         const response = await api.get('/scanner/tables');
         if (isMountedRef.current && response.data.success) {
           safeSetState(setTables, response.data.data || []);
+          console.log('✅ [SCANNER] Tables fetched:', response.data.data);
         }
-      } catch (error) {
-        console.error('Failed to fetch tables:', error);
+      } catch (error: any) {
+        // Greeters will get 403 (Forbidden) - this is expected and safe to ignore
+        if (error.response?.status === 403) {
+          console.log('ℹ️ [SCANNER] Greeters cannot access /scanner/tables (403 expected)');
+        } else {
+          console.error('Failed to fetch tables:', error);
+        }
       }
     };
 
