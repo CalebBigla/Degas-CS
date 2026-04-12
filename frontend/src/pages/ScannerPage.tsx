@@ -41,6 +41,7 @@ export function ScannerPage() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const qrContainerRef = useRef<HTMLDivElement | null>(null); // Isolate qr-reader DOM
   const isMountedRef = useRef(true); // Track component mount status
   const [showResult, setShowResult] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -451,12 +452,16 @@ export function ScannerPage() {
 
     // Fetch available tables for the selector (admin only)
     const fetchTables = async () => {
-      // Only fetch tables for admin users
-      console.log('📋 [SCANNER] Checking if should fetch tables:', { isAdminUser, userRole });
+      // EXPLICIT ROLE CHECK: Exit immediately for greeters to prevent API call
+      console.log('📋 [SCANNER] Checking user role for table fetch:', { userRole, isAdminUser });
+      
+      if (userRole === 'greeter') {
+        console.log('✅ [SCANNER] Skipping table fetch - user is greeter (will never need tables)');
+        return;
+      }
       
       if (!isAdminUser) {
         console.log('✅ [SCANNER] Skipping table fetch - user is not admin');
-        safeSetState(setLoadingTables, false);
         return;
       }
 
@@ -468,12 +473,7 @@ export function ScannerPage() {
           console.log('✅ [SCANNER] Tables fetched:', response.data.data);
         }
       } catch (error: any) {
-        // Greeters will get 403 (Forbidden) - this is expected and safe to ignore
-        if (error.response?.status === 403) {
-          console.log('ℹ️ [SCANNER] Greeters cannot access /scanner/tables (403 expected)');
-        } else {
-          console.error('Failed to fetch tables:', error);
-        }
+        console.error('❌ [SCANNER] Error fetching tables:', error);
       }
     };
 
@@ -506,8 +506,9 @@ export function ScannerPage() {
       }
       
       // Additional DOM cleanup as fallback - prevent removeChild conflicts
+      // Use ref-based cleanup for better isolation
       try {
-        const qrReaderDiv = document.getElementById('qr-reader');
+        const qrReaderDiv = qrContainerRef.current?.querySelector('#qr-reader');
         if (qrReaderDiv && qrReaderDiv.firstChild) {
           // Clear all child elements to prevent removeChild conflicts
           while (qrReaderDiv.firstChild) {
@@ -525,7 +526,7 @@ export function ScannerPage() {
         console.warn('⚠️ Cleanup: Unexpected error (ignored):', error);
       }
     };
-  }, [isAdminUser]);
+  }, [userRole]);
 
   return (
     <div className="min-h-screen bg-charcoal p-4 md:p-8">
@@ -679,19 +680,24 @@ export function ScannerPage() {
               {/* QR Reader Div - ALWAYS IN DOM, NEVER UNMOUNTED */}
               {/* This must be outside the conditional rendering to prevent unmount conflicts with html5-qrcode cleanup */}
               <div 
-                id="qr-reader" 
-                className="w-full bg-white" 
-                style={{ 
-                  minHeight: '400px',
-                  display: useSimplifiedScanner ? 'none' : 'block'
-                }}
+                ref={qrContainerRef}
+                className="w-full bg-white"
               >
-                {!isScanning && !cameraError && !useSimplifiedScanner && (
-                  <div className="text-center py-12">
-                    <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">Click "Start Scanner" to begin</p>
-                  </div>
-                )}
+                <div 
+                  id="qr-reader" 
+                  className="w-full bg-white" 
+                  style={{ 
+                    minHeight: '400px',
+                    display: useSimplifiedScanner ? 'none' : 'block'
+                  }}
+                >
+                  {!isScanning && !cameraError && !useSimplifiedScanner && (
+                    <div className="text-center py-12">
+                      <Camera className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">Click "Start Scanner" to begin</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (

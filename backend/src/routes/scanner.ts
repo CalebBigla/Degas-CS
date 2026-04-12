@@ -14,8 +14,8 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Verify QR code - ADMIN ONLY (rejects greeter tokens)
-router.post('/verify', requireRole(['admin', 'super_admin']), verifyQRValidation, verifyQR);
+// Verify QR code - ADMIN & GREETER (superadmin endpoint now accessible to greeters for troubleshooting)
+router.post('/verify', requireRole(['admin', 'super_admin', 'greeter']), verifyQRValidation, verifyQR);
 
 // Verify QR code - GREETER ONLY (uses same validation as admin, rejects admin tokens)
 router.post('/scan-greeter', requireRole(['greeter']), verifyQRValidation, verifyQRForGreeter);

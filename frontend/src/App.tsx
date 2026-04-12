@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UserDashboardPage } from './pages/UserDashboardPage';
@@ -40,7 +41,11 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<Navigate to="/register/06aa4b67-76fe-411a-a1e0-682871e8506f" replace />} />
           <Route path="/register/:formId" element={<RegisterPage />} />
-          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="/scanner" element={
+            <ErrorBoundary componentName="ScannerPage">
+              <ScannerPage />
+            </ErrorBoundary>
+          } />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </ThemeProvider>
@@ -59,7 +64,11 @@ function App() {
         // Greeter: Scanner only
         <Routes>
           <Route path="/" element={<Navigate to="/scanner" replace />} />
-          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="/scanner" element={
+            <ErrorBoundary componentName="ScannerPage">
+              <ScannerPage />
+            </ErrorBoundary>
+          } />
           <Route path="*" element={<Navigate to="/scanner" replace />} />
         </Routes>
       ) : isFollowUp ? (
@@ -89,7 +98,11 @@ function App() {
             <Route path="/admin/forms" element={<FormsPage />} />
             {/* ATTENDANCE MODULE DISABLED - Uncomment to re-enable */}
             {/* <Route path="/admin/attendance" element={<AttendanceSessionsPage />} /> */}
-            <Route path="/admin/scanner" element={<ScannerPage />} />
+            <Route path="/admin/scanner" element={
+              <ErrorBoundary componentName="ScannerPage">
+                <ScannerPage />
+              </ErrorBoundary>
+            } />
             <Route path="/admin/access-logs" element={<AttendanceReportPage />} />
             <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/user/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
@@ -106,7 +119,11 @@ function App() {
           <Route path="/user/qr-scanner" element={<QRScannerPage />} />
           <Route path="/user/attendance-history" element={<MemberDashboardPage />} />
           <Route path="/mark-attendance" element={<UserScannerPage />} />
-          <Route path="/scanner" element={<ScannerPage />} />
+          <Route path="/scanner" element={
+            <ErrorBoundary componentName="ScannerPage">
+              <ScannerPage />
+            </ErrorBoundary>
+          } />
           <Route path="/admin/*" element={<Navigate to="/user/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/user/dashboard" replace />} />
         </Routes>
