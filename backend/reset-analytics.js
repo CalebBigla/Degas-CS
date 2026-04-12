@@ -1,6 +1,12 @@
 /**
- * Reset Analytics Data
- * Clears analytics_log and access_log tables
+ * Reset Analytics Script
+ * 
+ * This script clears all analytics data from the database:
+ * - access_logs (legacy table)
+ * - access_log (Layer 1: live presence tracking)
+ * - analytics_log (Layer 2: permanent historical record)
+ * 
+ * WARNING: This action is irreversible!
  */
 
 require('dotenv').config();
@@ -13,55 +19,67 @@ async function resetAnalytics() {
     const db = getDatabase();
     const dbType = process.env.DATABASE_TYPE || 'sqlite';
     
-    console.log(`📊 Database type: ${dbType}`);
+    console.log(`📊 Database Type: ${dbType}`);
+    console.log(`📍 Database: ${process.env.DATABASE_URL ? 'PostgreSQL (Neon)' : 'SQLite (local)'}\n`);
+
+    // Count records before deletion
+    console.log('📊 Current record counts:');
     
-    // Check current counts before deletion
-    try {
-      const analyticsCount = await db.get('SELECT COUNT(*) as count FROM analytics_log');
-      const accessLogCount = await db.get('SELECT COUNT(*) as count FROM access_log');
-      
-      console.log(`\n📋 Current records:`);
-      console.log(`   - analytics_log: ${analyticsCount?.count || 0} records`);
-      console.log(`   - access_log: ${accessLogCount?.count || 0} records`);
-    } catch (e) {
-      console.log('⚠️  Could not count records (tables may not exist yet)');
+    const accessLogsCount = await db.get('SELECT COUNT(*) as count FROM access_logs');
+    console.log(`   - access_logs: ${accessLogsCount?.count || 0} records`);
+    
+    const accessLogCount = await db.get('SELECT COUNT(*) as count FROM access_log');
+    console.log(`   - access_log (Layer 1): ${accessLogCount?.count || 0} records`);
+    
+    const analyticsLogCount = await db.get('SELECT COUNT(*) as count FROM analytics_log');
+    console.log(`   - analytics_log (Layer 2): ${analyticsLogCount?.count || 0} records\n`);
+
+    // Confirm deletion
+    const readline = require('readline').createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const answer = await new Promise((resolve) => {
+      readline.question('⚠️  Are you sure you want to DELETE ALL analytics data? (yes/no): ', resolve);
+    });
+    readline.close();
+
+    if (answer.toLowerCase() !== 'yes') {
+      console.log('\n❌ Analytics reset cancelled.');
+      process.exit(0);
     }
+
+    console.log('\n🗑️  Deleting analytics data...\n');
+
+    // Delete from all analytics tables
+    const result1 = await db.run('DELETE FROM access_logs');
+    console.log(`✅ Cleared access_logs: ${result1?.changes || result1?.rowCount || 0} records deleted`);
+
+    const result2 = await db.run('DELETE FROM access_log');
+    console.log(`✅ Cleared access_log (Layer 1): ${result2?.changes || result2?.rowCount || 0} records deleted`);
+
+    const result3 = await db.run('DELETE FROM analytics_log');
+    console.log(`✅ Cleared analytics_log (Layer 2): ${result3?.changes || result3?.rowCount || 0} records deleted`);
+
+    // Verify deletion
+    console.log('\n📊 Verifying deletion:');
     
-    // Delete from analytics_log (permanent history)
-    console.log('\n🗑️  Deleting from analytics_log...');
-    try {
-      const result1 = await db.run('DELETE FROM analytics_log');
-      console.log(`✅ Deleted ${result1?.changes || result1?.rowCount || 0} records from analytics_log`);
-    } catch (e) {
-      console.log('⚠️  analytics_log table does not exist or is empty');
-    }
+    const afterAccessLogs = await db.get('SELECT COUNT(*) as count FROM access_logs');
+    console.log(`   - access_logs: ${afterAccessLogs?.count || 0} records remaining`);
     
-    // Delete from access_log (live presence)
-    console.log('\n🗑️  Deleting from access_log...');
-    try {
-      const result2 = await db.run('DELETE FROM access_log');
-      console.log(`✅ Deleted ${result2?.changes || result2?.rowCount || 0} records from access_log`);
-    } catch (e) {
-      console.log('⚠️  access_log table does not exist or is empty');
-    }
+    const afterAccessLog = await db.get('SELECT COUNT(*) as count FROM access_log');
+    console.log(`   - access_log: ${afterAccessLog?.count || 0} records remaining`);
     
-    // Also reset users.scanned and users.scannedat fields
-    console.log('\n🔄 Resetting users.scanned fields...');
-    try {
-      const result3 = await db.run(
-        dbType === 'sqlite'
-          ? `UPDATE users SET scanned = 0, scannedat = NULL WHERE scanned = 1`
-          : `UPDATE users SET scanned = false, scannedat = NULL WHERE scanned = true`
-      );
-      console.log(`✅ Reset ${result3?.changes || result3?.rowCount || 0} users to absent status`);
-    } catch (e) {
-      console.log('⚠️  Could not reset users table:', e.message);
-    }
-    
-    console.log('\n✅ Analytics reset complete!');
-    console.log('\n📊 All attendance tracking data has been cleared.');
-    
+    const afterAnalyticsLog = await db.get('SELECT COUNT(*) as count FROM analytics_log');
+    console.log(`   - analytics_log: ${afterAnalyticsLog?.count || 0} records remaining`);
+
+    console.log('\n✅ Analytics reset complete!\n');
+    console.log('📝 Note: User attendance status (users.scanned) was NOT reset.');
+    console.log('   Use the "Reset All" button in the Attendance Report page to reset user attendance.\n');
+
     process.exit(0);
+
   } catch (error) {
     console.error('❌ Error resetting analytics:', error);
     process.exit(1);
