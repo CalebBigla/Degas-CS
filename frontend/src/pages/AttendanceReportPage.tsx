@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Download, CheckCircle, XCircle, Eye, X, Users, UserCheck, UserX, Calendar } from 'lucide-react';
+import { Search, Download, CheckCircle, XCircle, Eye, X, Users, UserCheck, UserX, Calendar, RefreshCw } from 'lucide-react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -197,6 +197,28 @@ export function AttendanceReportPage() {
     toast.success('Attendance report exported');
   };
 
+  const handleResetAll = async () => {
+    // Confirm before resetting
+    const confirmed = window.confirm(
+      'Are you sure you want to reset ALL users to Absent? This action cannot be undone.'
+    );
+    
+    if (!confirmed) return;
+    
+    setLoading(true);
+    try {
+      await api.post('/analytics/reset-attendance');
+      toast.success('All users have been reset to Absent');
+      // Reload users to reflect changes
+      await loadUsers();
+    } catch (error: any) {
+      console.error('Failed to reset attendance:', error);
+      toast.error(error?.response?.data?.error || 'Failed to reset attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusBadge = (scanned: boolean) => {
     if (scanned) {
       return (
@@ -357,15 +379,25 @@ export function AttendanceReportPage() {
             </>
           )}
 
-          {/* Export Button */}
-          <div className="flex items-end">
+          {/* Export and Reset Buttons */}
+          <div className="flex items-end gap-3">
             <button
               onClick={handleExport}
               disabled={filteredUsers.length === 0}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download size={18} />
               Export
+            </button>
+            
+            <button
+              onClick={handleResetAll}
+              disabled={loading || users.length === 0}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Reset all users to Absent status"
+            >
+              <RefreshCw size={18} />
+              Reset All
             </button>
           </div>
         </div>
