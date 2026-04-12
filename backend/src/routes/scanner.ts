@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireRole } from '../middleware/auth';
 import {
   verifyQR,
+  verifyQRForGreeter,
   verifyQRValidation,
   getUserByHash,
   getAccessLogs,
@@ -13,17 +14,20 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Verify QR code
-router.post('/verify', verifyQRValidation, verifyQR);
+// Verify QR code - ADMIN ONLY (rejects greeter tokens)
+router.post('/verify', requireRole(['admin', 'super_admin']), verifyQRValidation, verifyQR);
 
-// Get user by QR hash
-router.get('/user/:hash', getUserByHash);
+// Verify QR code - GREETER ONLY (uses same validation as admin, rejects admin tokens)
+router.post('/scan-greeter', requireRole(['greeter']), verifyQRValidation, verifyQRForGreeter);
 
-// Get access logs
-router.get('/logs', getAccessLogs);
+// Get user by QR hash - ADMIN ONLY
+router.get('/user/:hash', requireRole(['admin', 'super_admin']), getUserByHash);
 
-// Get all tables for scanner selector
-router.get('/tables', getAllTables);
+// Get access logs - ADMIN ONLY
+router.get('/logs', requireRole(['admin', 'super_admin']), getAccessLogs);
+
+// Get all tables for scanner selector - ADMIN ONLY
+router.get('/tables', requireRole(['admin', 'super_admin']), getAllTables);
 
 // Test route to get verification URL for a user
 router.get('/test-qr/:userId', async (req, res) => {

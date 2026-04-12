@@ -53,9 +53,22 @@ export function ScannerPage() {
 
   // Determine which scanner endpoint to use based on user role
   const isAdminUser = admin !== null || userRole === 'admin' || userRole === 'super_admin';
-  const scannerEndpoint = isAdminUser ? '/scanner/verify' : '/form/scan';
+  const isGreeter = userRole === 'greeter';
   
-  console.log('🎯 [SCANNER] User role detected:', { userRole, isAdminUser, endpoint: scannerEndpoint });
+  // Route to correct endpoint based on role
+  // Admin: /scanner/verify (admin-only validation)
+  // Greeter: /scanner/scan-greeter (greeter-only, same validation logic as admin)
+  // Others: use default (shouldn't happen)
+  let scannerEndpoint: string;
+  if (isAdminUser) {
+    scannerEndpoint = '/scanner/verify';
+  } else if (isGreeter) {
+    scannerEndpoint = '/scanner/scan-greeter';
+  } else {
+    scannerEndpoint = '/scanner/scan-greeter'; // Fallback to greeter endpoint for non-admin roles
+  }
+  
+  console.log('🎯 [SCANNER] User role detected:', { userRole, isAdminUser, isGreeter, endpoint: scannerEndpoint });
 
   // Safe state update wrapper - prevents updates after unmount
   const safeSetState = (setter: any, value: any) => {
