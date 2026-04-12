@@ -701,6 +701,17 @@ async function initializeBackend() {
     isBackendReady = true;
     backendError = null;
     
+    // STEP 5: Initialize attendance cron jobs (48-hour auto-reset)
+    logger.info('⏰ Initializing attendance auto-reset cron job...');
+    try {
+      const { initAttendanceAutoCrons } = await import('./services/cronJobs');
+      await initAttendanceAutoCrons();
+      logger.info('✅ Attendance cron jobs initialized');
+    } catch (cronError) {
+      logger.warn('⚠️  Cron job initialization failed - attendance auto-reset may not work:', cronError);
+      // Don't block startup if cron fails
+    }
+    
     logger.info('✅ Backend initialization complete - API routes registered');
     logger.info('🎯 System ready to accept requests');
     

@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { QRService } from '../services/qrService';
 import { FieldNormalizer } from '../services/fieldNormalizer';
 import { TableSchemaRegistry } from '../services/tableSchemaRegistry';
+import { TwoLayerAttendanceLogger } from '../services/twoLayerAttendanceLogger';
 import { VerifyQRRequest, ScanResult, ApiResponse } from '@gatekeeper/shared';
 import logger from '../config/logger';
 
@@ -135,46 +136,17 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
       logger.error('❌ Failed to log access:', dbError);
     }
 
-    // Build result using SCHEMA as source of truth - no hardcoded fields
-    // Use first schema field as name field (aligned with ID card customization)
-    const getNameFromSchema = (schema: any, data: any): string => {
-      if (!schema?.fields || schema.fields.length === 0 || !data) {
-        return 'Unknown User';
-      }
-      
-      // First field in schema is the name field
-      const nameField = schema.fields[0]?.name;
-      if (nameField && data[nameField]) {
-        const nameValue = data[nameField];
-        return typeof nameValue === 'string' ? nameValue.trim() : String(nameValue);
-      }
-      
-      return 'Unknown User';
+    // Build user object - use actual user.name from users table
+    const userObj: any = {
+      name: user!.name || 'Unknown User', // Use name directly from users table
+      photoUrl: user!.photoUrl,
+      status: 'active'
     };
 
-    // Build user object from schema - only include fields displayed to user
-    // Do NOT include internal database IDs
-    const buildUserFromSchema = (schema: any, data: any): any => {
-      const userObj: any = {
-        name: getNameFromSchema(schema, data),
-        photoUrl: user!.photoUrl,
-        status: 'active'
-        // NOTE: Do not include database id, qrHash, createdAt, updatedAt - these are internal
-        // All schema fields are already in fieldValues and will be displayed from schema
-      };
-
-      logger.info('📋 Built user object from schema:', {
-        schemaFieldCount: schema?.fields?.length || 0,
-        userHasPhoto: !!user!.photoUrl,
-        nameValue: userObj.name
-      });
-
-      return userObj;
-    };
-
-
-    // Build dynamic user object from schema
-    const userObj = buildUserFromSchema(tableSchema, user!.data);
+    logger.info('📋 Built user object:', {
+      userName: userObj.name,
+      userHasPhoto: !!user!.photoUrl
+    });
 
     const result: ScanResult = {
       success: true,
@@ -209,6 +181,14 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
 
     logger.info(`✅ QR scan verified - Table: ${table!.name}, User: ${userObj.name}`);
     logger.info('📍 CHECKPOINT: Sending successful verification response');
+
+    // LAYER 1 & LAYER 2: Record scan to both access_log (live) and analytics_log (permanent)
+    try {
+      await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+    } catch (loggingError) {
+      logger.warn('⚠️ Non-critical: Failed to log scan to attendance layers', loggingError);
+      // Don't block the response if logging fails
+    }
 
     return res.status(200).json({
       success: true,
@@ -319,6 +299,15 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
     };
 
     logger.info('✅ [GREETER_SCAN] Sending successful response');
+    
+    // LAYER 1 & LAYER 2: Record scan to both access_log (live) and analytics_log (permanent)
+    try {
+      await TwoLayerAttendanceLogger.recordSuccessfulScan(user!.id, scannedBy);
+    } catch (loggingError) {
+      logger.warn('⚠️ [GREETER_SCAN] Non-critical: Failed to log scan to attendance layers', loggingError);
+      // Don't block the response if logging fails
+    }
+    
     return res.status(200).json({
       success: true,
       data: enrichedResult

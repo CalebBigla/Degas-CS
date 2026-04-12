@@ -75,6 +75,25 @@ CREATE TABLE IF NOT EXISTS access_logs (
   denial_reason TEXT
 );
 
+-- LAYER 1: LIVE PRESENCE TRACKING (resets after 48 hours)
+CREATE TABLE IF NOT EXISTS access_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  scanned_by TEXT,
+  status TEXT DEFAULT 'present' CHECK (status IN ('present', 'absent')),
+  expires_at DATETIME DEFAULT datetime('now', '+48 hours')
+);
+
+-- LAYER 2: PERMANENT HISTORICAL RECORD (never resets)
+CREATE TABLE IF NOT EXISTS analytics_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  scanned_by TEXT,
+  service_date DATE DEFAULT CURRENT_DATE
+);
+
 -- ============================================================================
 -- SECTION 5: QR CODES TABLE
 -- ============================================================================
@@ -116,6 +135,17 @@ CREATE INDEX IF NOT EXISTS idx_access_logs_user_id ON access_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_access_logs_formid ON access_logs(formid);
 CREATE INDEX IF NOT EXISTS idx_access_logs_scan_timestamp ON access_logs(scan_timestamp);
 CREATE INDEX IF NOT EXISTS idx_access_logs_access_granted ON access_logs(access_granted);
+
+-- Access Log (LAYER 1) Indexes
+CREATE INDEX IF NOT EXISTS idx_access_log_user_id ON access_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_access_log_status ON access_log(status);
+CREATE INDEX IF NOT EXISTS idx_access_log_expires_at ON access_log(expires_at);
+CREATE INDEX IF NOT EXISTS idx_access_log_scanned_at ON access_log(scanned_at);
+
+-- Analytics Log (LAYER 2) Indexes
+CREATE INDEX IF NOT EXISTS idx_analytics_log_user_id ON analytics_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_log_service_date ON analytics_log(service_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_log_scanned_at ON analytics_log(scanned_at);
 
 -- QR Codes Indexes
 CREATE INDEX IF NOT EXISTS idx_qr_codes_user_id ON qr_codes(user_id);
