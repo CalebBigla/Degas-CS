@@ -32,8 +32,7 @@ VALUES (
 INSERT INTO core_users (email, password, full_name, phone, role, status)
 VALUES (
   'greeter@fgm.com',
-  -- Replace with actual bcrypt hash of 'greeter123'
-  '$2a$10$7xL4Cm.pZM8Qs5Jk6vhginRwT5ShKpM2.XYrCMlXHMqaXGyKyNAi2',
+  '$2a$10$ZCMY3tdoNc/fESCUTXbYuu3pNxRKbmv8f3vzwNQE8EO4Zak.x/1fy',
   'Greeter Team Member',
   '+1-XXX-XXX-XXXX',
   'greeter',
@@ -48,7 +47,7 @@ VALUES (
 INSERT INTO core_users (email, password, full_name, phone, role, status)
 VALUES (
   'greeter2@fgm.com',
-  '$2a$10$7xL4Cm.pZM8Qs5Jk6vhginRwT5ShKpM2.XYrCMlXHMqaXGyKyNAi2',
+  '$2a$10$ZCMY3tdoNc/fESCUTXbYuu3pNxRKbmv8f3vzwNQE8EO4Zak.x/1fy',
   'Greeter - Team Lead',
   '+1-XXX-XXX-XXXX',
   'greeter',

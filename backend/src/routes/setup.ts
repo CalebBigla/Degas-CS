@@ -266,6 +266,101 @@ router.get('/initialize', async (req: Request, res: Response) => {
 });
 
 /**
+ * Create test greeter users for testing scanner functionality
+ * GET /api/setup/create-greeter-test-users
+ */
+router.get('/create-greeter-test-users', async (req: Request, res: Response) => {
+  try {
+    const { getDatabase } = await import('../config/database');
+    const db = getDatabase();
+
+    const greeterHash = '$2a$10$ZCMY3tdoNc/fESCUTXbYuu3pNxRKbmv8f3vzwNQE8EO4Zak.x/1fy'; // bcrypt hash of 'greeter123'
+
+    const results: string[] = [];
+
+    // Create greeter@fgm.com
+    try {
+      const existingGreeter = await db.get(
+        'SELECT id FROM core_users WHERE email = ?',
+        ['greeter@fgm.com']
+      );
+
+      if (existingGreeter) {
+        results.push('ℹ️  Greeter user already exists: greeter@fgm.com');
+      } else {
+        await db.run(
+          `INSERT INTO core_users (email, password, full_name, phone, role, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            'greeter@fgm.com',
+            greeterHash,
+            'Greeter Team Member',
+            '+1-555-0001',
+            'greeter',
+            'active',
+            new Date().toISOString(),
+            new Date().toISOString()
+          ]
+        );
+        results.push('✅ Created greeter user: greeter@fgm.com (password: greeter123)');
+      }
+    } catch (error: any) {
+      results.push(`❌ Failed to create greeter@fgm.com: ${error.message}`);
+    }
+
+    // Create greeter2@fgm.com
+    try {
+      const existingGreeter2 = await db.get(
+        'SELECT id FROM core_users WHERE email = ?',
+        ['greeter2@fgm.com']
+      );
+
+      if (existingGreeter2) {
+        results.push('ℹ️  Greeter user already exists: greeter2@fgm.com');
+      } else {
+        await db.run(
+          `INSERT INTO core_users (email, password, full_name, phone, role, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            'greeter2@fgm.com',
+            greeterHash,
+            'Greeter - Team Lead',
+            '+1-555-0002',
+            'greeter',
+            'active',
+            new Date().toISOString(),
+            new Date().toISOString()
+          ]
+        );
+        results.push('✅ Created greeter user: greeter2@fgm.com (password: greeter123)');
+      }
+    } catch (error: any) {
+      results.push(`❌ Failed to create greeter2@fgm.com: ${error.message}`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Greeter users setup complete',
+      results,
+      credentials: {
+        email: 'greeter@fgm.com (or greeter2@fgm.com)',
+        password: 'greeter123',
+        role: 'greeter'
+      }
+    });
+
+  } catch (error: any) {
+    logger.error('❌ Failed to create greeter test users:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create greeter users',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
  * Health check for setup endpoint
  * GET /api/setup/health
  */
