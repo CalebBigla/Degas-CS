@@ -206,15 +206,27 @@ export class TwoLayerAttendanceLogger {
   static async manualResetAllToAbsent(): Promise<number> {
     try {
       const db = getDatabase();
+      const dbType = process.env.DATABASE_TYPE || 'sqlite';
 
       logger.warn('🔄 [MANUAL RESET] Superadmin resetting all attendance to absent');
 
-      const result = await db.run(
+      // Update users table - set scanned to false and scannedat to null
+      const usersResult = await db.run(
+        dbType === 'sqlite'
+          ? `UPDATE users SET scanned = 0, scannedat = NULL WHERE scanned = 1`
+          : `UPDATE users SET scanned = false, scannedat = NULL WHERE scanned = true`
+      ) as any;
+
+      // Also update access_log table for consistency
+      const accessLogResult = await db.run(
         `UPDATE access_log SET status = 'absent' WHERE status = 'present'`
       ) as any;
 
-      const affectedRows = result?.rowCount || result?.changes || 0;
-      logger.warn('✅ [MANUAL RESET] Attendance reset complete', { affectedRows });
+      const affectedRows = usersResult?.rowCount || usersResult?.changes || 0;
+      logger.warn('✅ [MANUAL RESET] Attendance reset complete', { 
+        usersAffected: affectedRows,
+        accessLogAffected: accessLogResult?.rowCount || accessLogResult?.changes || 0
+      });
       return affectedRows;
     } catch (error) {
       logger.error('❌ Failed to reset attendance:', error);
