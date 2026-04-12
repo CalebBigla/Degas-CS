@@ -236,137 +236,64 @@ export const verifyQR = async (req: AuthRequest, res: Response) => {
 // GREETER-SPECIFIC SCANNER - Uses same validation as admin but for greeter role
 export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
   try {
-    const { qrData, scannerLocation, selectedTableId } = req.body as VerifyQRRequest & { selectedTableId?: string };
+    const { qrData } = req.body;
     const scannedBy = req.admin?.id;
 
-    logger.info('🎯 [GREETER_SCAN] ========== REQUEST RECEIVED ==========');
-    logger.info('🎯 [GREETER_SCAN] Greeter authenticated', {
+    logger.info('✅ [GREETER_SCAN] Greeter endpoint HIT!', {
       greeterId: scannedBy,
-      greeterUsername: req.admin?.username
+      role: req.admin?.role,
+      qrDataLength: qrData?.length || 0
     });
 
-    logger.info('🎯 [GREETER_SCAN] Request payload:', { 
-      scannerLocation, 
-      scannedBy,
-      selectedTableId: selectedTableId || 'all-tables',
-      qrDataLength: qrData?.length || 0,
-      qrDataPreview: qrData?.substring(0, 100) || 'NO DATA'
-    });
+    if (!qrData) {
+      return res.status(400).json({
+        success: false,
+        message: 'qrData is required'
+      });
+    }
 
-    // Filter out empty string - treat it as undefined (scan all tables) - SAME VALIDATION AS ADMIN
-    const tableFilter = selectedTableId && selectedTableId.trim() !== '' ? selectedTableId : undefined;
-
-    // Use the EXACT SAME database verification method with optional table filter
-    logger.info('🎯 [GREETER_SCAN] Calling QRService.verifyQRFromDatabase...', { tableFilter });
-    const verification = await QRService.verifyQRFromDatabase(qrData, tableFilter);
+    // Use the EXACT SAME database verification method
+    logger.info('🎯 [GREETER_SCAN] Calling QRService.verifyQRFromDatabase...');
+    const verification = await QRService.verifyQRFromDatabase(qrData);
     
     logger.info('🎯 [GREETER_SCAN] Service returned:', {
       valid: verification.valid,
-      hasUser: !!verification.user,
-      hasTable: !!verification.table,
-      error: verification.error || 'none'
+      error: verification.error
     });
     
     if (!verification.valid) {
-      logger.warn('🎯 [GREETER_SCAN] ❌ VERIFICATION FAILED', { 
-        reason: verification.error,
-        qrDataPreview: qrData?.substring(0, 50)
-      });
-
-      // Log failed scan attempt - SAME AS ADMIN
-      try {
-        const db = getDatabase();
-        const dbType = process.env.DATABASE_TYPE || 'sqlite';
-        const timestampFunc = dbType === 'sqlite' ? "datetime('now', 'utc')" : 'NOW()';
-        
-        await db.run(
-          `INSERT INTO access_logs (scanner_location, access_granted, scanned_by, scan_timestamp, ip_address, user_agent, denial_reason)
-           VALUES (?, ?, ?, ${timestampFunc}, ?, ?, ?)`,
-          [scannerLocation, 0, scannedBy, req.ip, req.get('User-Agent'), verification.error || 'Invalid QR code']
-        );
-        logger.info('✅ Failed access logged');
-      } catch (dbError) {
-        logger.error('❌ Failed to log access attempt:', dbError);
-      }
-
-      const result: ScanResult = {
-        success: false,
-        accessGranted: false,
-        message: verification.error || 'Invalid QR code'
-      };
-
-      logger.info('📍 Sending 401 response with error');
+      logger.warn('🎯 [GREETER_SCAN] Verification failed:', verification.error);
       return res.status(401).json({
         success: true,
-        data: result
+        data: {
+          success: false,
+          accessGranted: false,
+          message: verification.error || 'Invalid QR code'
+        }
       });
     }
 
-    // QR is valid and user found - SAME VALIDATION AS ADMIN
-    const { user, table, tableSchema, qrCode } = verification;
-    const accessGranted = true;
+    // QR is valid and user found
+    const { user, table, tableSchema } = verification;
 
-    logger.info('✅ VERIFICATION SUCCESS', {
-      userId: user?.id,
-      userUuid: user?.uuid,
-      tableName: table?.name,
-      tableId: table?.id,
-      qrCodeId: qrCode?.id
-    });
-
-    // Log successful scan - SAME AS ADMIN
-    try {
-      const db = getDatabase();
-      const dbType = process.env.DATABASE_TYPE || 'sqlite';
-      const timestampFunc = dbType === 'sqlite' ? "datetime('now', 'utc')" : 'NOW()';
-      
-      logger.info('📝 Recording access log:', {
-        userId: user!.id,
-        tableId: table!.id,
-        qrCodeId: qrCode!.id,
-        scannerLocation,
-        accessGranted: true,
-        scannedBy
-      });
-      await db.run(
-        `INSERT INTO access_logs (user_id, table_id, qr_code_id, scanner_location, access_granted, scanned_by, scan_timestamp, ip_address, user_agent)
-         VALUES (?, ?, ?, ?, ?, ?, ${timestampFunc}, ?, ?)`,
-        [user!.id, table!.id, qrCode!.id, scannerLocation, 1, scannedBy, req.ip, req.get('User-Agent')]
-      );
-      logger.info('✅ Access log recorded successfully');
-    } catch (dbError) {
-      logger.error('❌ Failed to log access:', dbError);
-    }
+    logger.info('✅ [GREETER_SCAN] QR verified successfully for user:', user?.id);
 
     // Build user object from schema - SAME AS ADMIN
-    const buildUserFromSchema = (schema: any, data: any): any => {
-      const nameField = schema?.fields?.[0]?.name;
-      const fullName = nameField && data[nameField] 
-        ? (typeof data[nameField] === 'string' ? data[nameField].trim() : String(data[nameField]))
-        : 'Unknown User';
+    const nameField = tableSchema?.fields?.[0]?.name;
+    const fullName = nameField && user!.data[nameField] 
+      ? (typeof user!.data[nameField] === 'string' ? user!.data[nameField].trim() : String(user!.data[nameField]))
+      : 'Unknown User';
 
-      const userObj: any = {
-        fullName: fullName,
-        photoUrl: user!.photoUrl,
-        status: 'active'
-      };
-
-      logger.info('📋 Built user object from schema:', {
-        schemaFieldCount: schema?.fields?.length || 0,
-        userHasPhoto: !!user!.photoUrl,
-        nameValue: userObj.fullName
-      });
-
-      return userObj;
+    const userObj: any = {
+      fullName: fullName,
+      photoUrl: user!.photoUrl,
+      status: 'active'
     };
 
-    const userObj = buildUserFromSchema(tableSchema, user!.data);
-
-    // Build result with greeter-specific message
     const result: ScanResult = {
       success: true,
       user: userObj,
-      accessGranted,
+      accessGranted: true,
       message: 'Access granted'
     };
 
@@ -379,7 +306,6 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
         type: typeof user!.data[fieldName],
         displayName: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/([A-Z])/g, ' $1')
       }));
-      logger.info('📋 Auto-generated schema from user data:', { fieldCount: schema.length, fieldNames: schema.map((f: any) => f.name) });
     }
 
     const enrichedResult = {
@@ -392,9 +318,7 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
       fieldValues: user!.data || {}
     };
 
-    logger.info(`✅ Greeter QR scan verified - Table: ${table!.name}, User: ${userObj.fullName}`);
-    logger.info('📍 CHECKPOINT: Sending successful verification response to greeter');
-
+    logger.log('✅ [GREETER_SCAN] Sending successful response');
     return res.status(200).json({
       success: true,
       data: enrichedResult
@@ -402,13 +326,7 @@ export const verifyQRForGreeter = async (req: AuthRequest, res: Response) => {
 
   } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('❌ Greeter QR verification failed:', {
-      errorMessage,
-      errorStack,
-      errorType: error?.constructor?.name || typeof error
-    });
+    logger.error('❌ [GREETER_SCAN] Error:', errorMessage);
 
     return res.status(500).json({
       success: false,
