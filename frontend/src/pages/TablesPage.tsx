@@ -200,7 +200,11 @@ export function TablesPage() {
           {filteredTables.map((table) => (
             <div
               key={table.id}
-              className="card p-6 cursor-pointer group"
+              className={`card p-6 cursor-pointer group ${
+                table.name === 'The Force of Grace Ministry' 
+                  ? 'border-2 border-emerald ring-2 ring-emerald/20' 
+                  : ''
+              }`}
               onClick={() => handleViewTable(table)}
             >
               <div className="flex justify-between items-start mb-4">
