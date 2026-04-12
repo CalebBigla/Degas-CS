@@ -170,6 +170,52 @@ export class AttendanceAnalyticsController {
   }
 
   /**
+   * POST /api/analytics/reset-user/:userId
+   * Reset individual user to absent status
+   * Access: Super Admin ONLY
+   */
+  static async resetIndividualUser(req: AuthRequest, res: Response) {
+    try {
+      // Verify super admin
+      if (req.admin?.role !== 'super_admin') {
+        logger.warn('⚠️ [ANALYTICS] Unauthorized individual reset attempt by:', { userId: req.admin?.id, role: req.admin?.role });
+        return res.status(403).json({
+          success: false,
+          error: 'Only superadmin can reset attendance'
+        });
+      }
+
+      const { userId } = req.params;
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'User ID is required'
+        });
+      }
+
+      logger.warn('🔄 [ANALYTICS] Superadmin resetting individual user...', { targetUserId: userId, adminId: req.admin?.id });
+
+      const affectedRows = await TwoLayerAttendanceLogger.resetUserToAbsent(userId);
+
+      logger.warn('✅ [ANALYTICS] Individual user reset complete', { targetUserId: userId, adminId: req.admin?.id, affectedRows });
+
+      return res.json({
+        success: true,
+        message: `Reset ${affectedRows} record(s) for user`,
+        affectedRows,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('❌ [ANALYTICS] Error resetting individual user:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to reset user attendance'
+      });
+    }
+  }
+
+  /**
    * POST /api/analytics/reset-attendance
    * Manual reset: Set all present members to absent
    * Superadmin dashboard button
@@ -214,4 +260,5 @@ export const getPresenceStatus = AttendanceAnalyticsController.getPresenceStatus
 export const exportAbsentMembersCSV = AttendanceAnalyticsController.exportAbsentMembersCSV.bind(AttendanceAnalyticsController);
 export const getMemberAttendanceHistory = AttendanceAnalyticsController.getMemberAttendanceHistory.bind(AttendanceAnalyticsController);
 export const getAttendanceAnalyticsSummary = AttendanceAnalyticsController.getAttendanceAnalyticsSummary.bind(AttendanceAnalyticsController);
+export const resetIndividualUser = AttendanceAnalyticsController.resetIndividualUser.bind(AttendanceAnalyticsController);
 export const manualResetAttendance = AttendanceAnalyticsController.manualResetAttendance.bind(AttendanceAnalyticsController);

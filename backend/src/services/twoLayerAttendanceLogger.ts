@@ -176,6 +176,30 @@ export class TwoLayerAttendanceLogger {
   }
 
   /**
+   * Reset individual user to absent status
+   * Called when admin clicks reset on specific user in access logs
+   */
+  static async resetUserToAbsent(userId: string): Promise<number> {
+    try {
+      const db = getDatabase();
+
+      logger.warn('🔄 [INDIVIDUAL RESET] Superadmin resetting user to absent', { userId });
+
+      const result = await db.run(
+        `UPDATE access_log SET status = 'absent' WHERE user_id = $1 AND status = 'present'`,
+        [userId]
+      ) as any;
+
+      const affectedRows = result?.rowCount || result?.changes || 0;
+      logger.warn('✅ [INDIVIDUAL RESET] User reset complete', { userId, affectedRows });
+      return affectedRows;
+    } catch (error) {
+      logger.error('❌ Failed to reset individual user:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Manual reset: Set all present members to absent
    * Called by superadmin dashboard button
    */

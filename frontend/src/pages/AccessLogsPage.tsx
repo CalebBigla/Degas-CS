@@ -25,6 +25,9 @@ export function AccessLogsPage() {
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetType, setResetType] = useState<'all' | 'individual'>('all');
+  const [isResetting, setIsResetting] = useState(false);
   const limit = 20;
 
   // Fetch tables for filter dropdown
@@ -111,6 +114,36 @@ export function AccessLogsPage() {
     }
   };
 
+  const handleResetAllPresent = async () => {
+    setResetType('all');
+    setShowResetConfirm(true);
+  };
+
+  const handleResetIndividual = async (userId: string) => {
+    setResetType('individual');
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = async () => {
+    setIsResetting(true);
+    try {
+      if (resetType === 'all') {
+        await api.post('/analytics/reset-attendance');
+        alert('Successfully reset all present users to absent');
+      } else if (resetType === 'individual' && selectedLog) {
+        await api.post(`/analytics/reset-user/${selectedLog.userId}`);
+        alert(`Successfully reset ${selectedLog.userName} to absent`);
+      }
+      setShowResetConfirm(false);
+      refetch(); // Refresh the logs
+    } catch (error: any) {
+      console.error('Reset failed:', error);
+      alert(error.response?.data?.error || 'Failed to reset attendance. Please try again.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === 'granted') {
       return (
@@ -166,6 +199,14 @@ export function AccessLogsPage() {
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
+          </button>
+          <button 
+            onClick={handleResetAllPresent}
+            className="btn btn-warning flex items-center space-x-2"
+            title="Reset all present users to absent"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Reset All</span>
           </button>
           <button 
             onClick={handleExportLogs}
@@ -493,12 +534,53 @@ export function AccessLogsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between">
+              <button
+                onClick={() => handleResetIndividual(selectedLog.userId)}
+                className="btn btn-warning flex items-center space-x-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Reset to Absent</span>
+              </button>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="btn btn-primary"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-6">
+              <h2 className="text-xl font-bold">Confirm Reset</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-gray-700">
+                {resetType === 'all'
+                  ? 'This will reset all present users to absent status. This action cannot be undone. Are you sure?'
+                  : `This will reset ${selectedLog?.userName} to absent status. This action cannot be undone. Are you sure?`}
+              </p>
+            </div>
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="btn btn-ghost"
+                disabled={isResetting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReset}
+                className="btn btn-danger"
+                disabled={isResetting}
+              >
+                {isResetting ? 'Resetting...' : 'Reset'}
               </button>
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
   exportAbsentMembersCSV,
   getMemberAttendanceHistory,
   getAttendanceAnalyticsSummary,
+  resetIndividualUser,
   manualResetAttendance
 } from '../controllers/attendanceAnalyticsController';
 
@@ -74,5 +75,10 @@ router.get('/attendance-summary', requireRole(['admin', 'super_admin']), getAtte
 // Superadmin dashboard button for manual correction
 // Access: Super Admin ONLY
 router.post('/reset-attendance', requireRole(['super_admin']), manualResetAttendance);
+
+// Reset individual user to absent
+// Superadmin access logs user reset button
+// Access: Super Admin ONLY
+router.post('/reset-user/:userId', requireRole(['super_admin']), resetIndividualUser);
 
 export default router;
