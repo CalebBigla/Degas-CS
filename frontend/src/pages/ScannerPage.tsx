@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Camera, CameraOff, CheckCircle, XCircle, User, RefreshCw, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -49,29 +49,43 @@ export function ScannerPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const navigate = useNavigate();
-  const { logout, admin, user, userRole } = useAuth();
+  const { logout, userRole } = useAuth();
 
-  // Determine which scanner endpoint to use based on user role
-  // CRITICAL: Check role explicitly, not just admin object presence
-  // Admins: admin !== null AND (role === 'admin' OR 'super_admin')
-  // Greeters: admin === null AND userRole === 'greeter'
-  const isAdminUser = admin !== null && (userRole === 'admin' || userRole === 'super_admin');
-  const isGreeter = userRole === 'greeter' && admin === null;
+  // STABLE role detection - only depends on userRole, not admin object
+  // This prevents role confusion during re-renders when admin object becomes null
+  const isAdminUser = useMemo(() => {
+    return userRole === 'admin' || userRole === 'super_admin';
+  }, [userRole]);
+
+  const isGreeter = useMemo(() => {
+    return userRole === 'greeter';
+  }, [userRole]);
   
-  // Route to correct endpoint based on role
-  // Admin: /scanner/verify (admin-only validation)
-  // Greeter: /scanner/scan-greeter (greeter-only, same validation logic as admin)
-  // Others: use default (shouldn't happen)
-  let scannerEndpoint: string;
-  if (isAdminUser) {
-    scannerEndpoint = '/scanner/verify';
-  } else if (isGreeter) {
-    scannerEndpoint = '/scanner/scan-greeter';
-  } else {
-    scannerEndpoint = '/scanner/scan-greeter'; // Fallback to greeter endpoint for non-admin roles
-  }
+  // STABLE endpoint selection - locked with useMemo to prevent recalculation during re-renders
+  const scannerEndpoint = useMemo(() => {
+    if (userRole === 'admin' || userRole === 'super_admin') {
+      return '/scanner/verify';
+    }
+    return '/scanner/scan-greeter';
+  }, [userRole]);
   
   console.log('🎯 [SCANNER] User role detected:', { userRole, isAdminUser, isGreeter, endpoint: scannerEndpoint });
+
+  // Auth guard - redirect lost sessions to login, not admin
+  useEffect(() => {
+    if (!userRole) {
+      console.warn('⚠️ No user role detected, redirecting to login');
+      navigate('/login');
+      return;
+    }
+    
+    // If greeter tries to access admin route, redirect back to scanner
+    if (userRole === 'greeter' && window.location.pathname.includes('/admin')) {
+      console.warn('⚠️ Greeter attempted to access admin route, redirecting to scanner');
+      navigate('/scanner');
+      return;
+    }
+  }, [userRole, navigate]);
 
   // Safe state update wrapper - prevents updates after unmount
   const safeSetState = (setter: any, value: any) => {
@@ -511,7 +525,7 @@ export function ScannerPage() {
         console.warn('⚠️ Cleanup: Unexpected error (ignored):', error);
       }
     };
-  }, []);
+  }, [isAdminUser]);
 
   return (
     <div className="min-h-screen bg-charcoal p-4 md:p-8">
